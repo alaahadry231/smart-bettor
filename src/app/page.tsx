@@ -432,8 +432,8 @@ interface PatternAnalysis {
   targetSeq: SymbolId[];
 }
 
-function analyzePattern(history: ResultRow[], minMatches = 2): PatternAnalysis {
-  const lengths = [3, 4, 2];
+function analyzePattern(history: ResultRow[], minMatches = 4): PatternAnalysis {
+  const lengths = [4, 3, 2]; // نبدأ بالأطول (4) عشان نضمن دقة أعلى
   const empty: PatternAnalysis = { predictions: [], usedPatternLength: 0, matchCount: 0, quality: 0, support: 0, targetSeq: [] };
   for (const len of lengths) {
     if (history.length < len + 1) continue;
@@ -469,7 +469,7 @@ function analyzePattern(history: ResultRow[], minMatches = 2): PatternAnalysis {
 }
 
 function getNGramPredictions(results: ResultRow[]) {
-  return analyzePattern(results, 2);
+  return analyzePattern(results, 4); // نطلب 4 مطابقات على الأقل
 }
 
 interface BacktestMetrics {
@@ -482,7 +482,7 @@ interface BacktestMetrics {
 function runWalkForwardBacktest(results: ResultRow[], minHistory = 8): BacktestMetrics {
   let trials = 0, top1Hits = 0, top3Hits = 0;
   for (let i = minHistory; i < results.length; i++) {
-    const analysis = analyzePattern(results.slice(0, i), 2);
+const analysis = analyzePattern(results.slice(0, i), 4);
     if (!analysis.predictions.length) continue;
     trials++;
     const actual = results[i].symbol_id;
