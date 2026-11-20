@@ -4,12 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { 
   RotateCcw, Trash2, Activity, Crown,
   Target, BarChart3, Upload,
-  ShieldAlert, Puzzle, Zap, Database, Cpu, Radio, TrendingUp, Clock, Gauge
+  ShieldAlert, Puzzle, Zap, Database, Cpu, Radio, Gauge
 } from 'lucide-react';
 
-// ==========================================
-// تعريفات الرموز
-// ==========================================
 export type SymbolId = 
   | 'tomato' | 'pepper' | 'corn' | 'carrot' 
   | 'rooster' | 'sheep' | 'shrimp' | 'fish';
@@ -40,34 +37,32 @@ interface ResultRow {
   created_at: string;
 }
 
-// ==========================================
-// Main Component
-// ==========================================
 export default function HomePage() {
   const [results, setResults] = useState<ResultRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchResults = useCallback(async (): Promise<boolean> => {
+  const fetchResults = useCallback(async (): Promise<void> => {
     try {
       const res = await fetch('/api/results', { cache: 'no-store' });
-      if (!res.ok) throw new Error(`GET /api/results failed (${res.status})`);
-      const data: unknown = await res.json();
-      if (!Array.isArray(data)) throw new Error('Unexpected results payload');
-      const validRows = data.filter((row): row is ResultRow =>
-        row && typeof row === 'object' &&
-        typeof row.id === 'number' &&
-        SYMBOLS.some((symbol) => symbol.id === row.symbol_id) &&
-        typeof row.created_at === 'string'
-      );
+      if (!res.ok) throw new Error(`GET failed (${res.status})`);
+      
+      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error('Data is not an array');
+
+      // التحويل الذكي: شلنا الفلترة الصارمة
+      const validRows: ResultRow[] = data.map((row: any) => ({
+        id: Number(row.id),
+        symbol_id: row.symbol_id as SymbolId,
+        created_at: row.created_at || new Date().toISOString()
+      }));
+
       setResults(validRows);
       setError(null);
-      return true;
     } catch (e) {
-      console.error('fetchResults:', e);
-      setError('تعذر جلب النتائج. تحقق من الاتصال وحاول مرة أخرى.');
-      return false;
+      console.error('fetchResults error:', e);
+      setError('تعذر جلب النتائج.');
     }
   }, []);
 
@@ -88,9 +83,12 @@ export default function HomePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol_id: symbolId }),
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) throw new Error('POST failed');
       await fetchResults();
-    } catch (e) { console.error(e); setError('تعذر إضافة النتيجة'); }
+    } catch (e) { 
+      console.error(e); 
+      setError('تعذر إضافة النتيجة'); 
+    }
     finally { setSubmitting(false); }
   }, [submitting, fetchResults]);
 
@@ -99,9 +97,12 @@ export default function HomePage() {
     setSubmitting(true);
     try {
       const res = await fetch('/api/results', { method: 'DELETE' });
-      if (!res.ok) throw new Error(`Undo failed (${res.status})`);
+      if (!res.ok) throw new Error('Undo failed');
       await fetchResults();
-    } catch (e) { console.error(e); setError('تعذر التراجع'); }
+    } catch (e) { 
+      console.error(e); 
+      setError('تعذر التراجع'); 
+    }
     finally { setSubmitting(false); }
   }, [submitting, results.length, fetchResults]);
 
@@ -111,9 +112,12 @@ export default function HomePage() {
     setSubmitting(true);
     try {
       const res = await fetch('/api/results', { method: 'PUT' });
-      if (!res.ok) throw new Error(`Clear failed (${res.status})`);
+      if (!res.ok) throw new Error('Clear failed');
       await fetchResults();
-    } catch (e) { console.error(e); setError('تعذر مسح النتائج'); }
+    } catch (e) { 
+      console.error(e); 
+      setError('تعذر مسح النتائج'); 
+    }
     finally { setSubmitting(false); }
   }, [submitting, fetchResults]);
 
@@ -135,9 +139,6 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen selection:bg-violet-500/30 font-sans">
-      {/* ==========================================
-          Command Header
-         ========================================== */}
       <header className="sticky top-0 z-50 border-b border-white/[0.04] bg-[#050508]/60 backdrop-blur-3xl">
         <div className="max-w-[1600px] mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -172,7 +173,6 @@ export default function HomePage() {
       </header>
 
       <div className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 space-y-6">
-        
         {error && (
           <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
             <div className="flex items-center gap-2"><ShieldAlert className="w-4 h-4" /><span>{error}</span></div>
@@ -180,19 +180,12 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ==========================================
-            Bento Grid Architecture
-           ========================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           
-          {/* 1. Core Analysis (Hero) - The Heart */}
           <div className="lg:col-span-5 row-span-2 relative group overflow-hidden rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(139,92,246,0.15),transparent_70%)]"></div>
             <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] overflow-hidden flex flex-col border border-white/[0.04]">
-              
-              {/* Scanning Line Animation */}
               <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-violet-500/50 to-transparent animate-[scanline_4s_linear_infinite]"></div>
-              
               <div className="p-6 flex-1 flex flex-col">
                 <div className="flex items-center justify-between mb-8">
                   <div className="flex items-center gap-3">
@@ -206,7 +199,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 2. Command Console (Input) */}
           <div className="lg:col-span-7 relative group rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(6,182,212,0.05),transparent_50%)]"></div>
             <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] p-6 border border-white/[0.04]">
@@ -222,15 +214,15 @@ export default function HomePage() {
                   <button onClick={handleClearAll} disabled={submitting || results.length === 0} className="p-2 rounded-lg bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 transition-all disabled:opacity-30 text-rose-400"><Trash2 className="w-4 h-4" /></button>
                   <label className="p-2 rounded-lg bg-cyan-500/5 hover:bg-cyan-500/10 border border-cyan-500/10 transition-all cursor-pointer text-cyan-400">
                     <Upload className="w-4 h-4" />
-<input type="file" accept=".csv" className="hidden" onChange={async (e) => {
-  const file = e.target.files?.[0];
-  if (file) { 
-    setSubmitting(true); 
-    await importCSV(file, async () => { await fetchResults(); }); 
-    setSubmitting(false); 
-  }
-  e.target.value = '';
-}} />
+                    <input type="file" accept=".csv" className="hidden" onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) { 
+                        setSubmitting(true); 
+                        await importCSV(file, async () => { await fetchResults(); }); 
+                        setSubmitting(false); 
+                      }
+                      e.target.value = '';
+                    }} />
                   </label>
                 </div>
               </div>
@@ -251,7 +243,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 3. Live Stream (Recent) */}
           <div className="lg:col-span-7 relative group rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] p-6 border border-white/[0.04]">
                <div className="flex items-center justify-between mb-4">
@@ -264,7 +255,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 4. Mini Stats Column */}
           <div className="lg:col-span-3 grid grid-cols-1 gap-5">
             <div className="relative rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
               <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] p-5 border border-white/[0.04] flex flex-col justify-center">
@@ -282,7 +272,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 5. Frequency Analysis */}
           <div className="lg:col-span-5 relative rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] p-6 border border-white/[0.04]">
               <div className="flex items-center justify-between mb-6">
@@ -295,7 +284,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 6. Gap Analysis */}
           <div className="lg:col-span-4 relative rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] p-6 border border-white/[0.04]">
               <div className="flex items-center justify-between mb-6">
@@ -308,7 +296,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 7. Pattern Quality & Walk-forward Backtest */}
           <div className="lg:col-span-12 relative rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="relative rounded-[1.85rem] bg-[#0B0C10] p-6 border border-white/[0.04]">
               <div className="flex items-center justify-between mb-5">
@@ -334,9 +321,6 @@ export default function HomePage() {
   );
 }
 
-// ==========================================
-// Components
-// ==========================================
 function LastResults({ results }: { results: ResultRow[] }) {
   const last = results.slice(-20).reverse();
   if (last.length === 0) return <div className="py-8 text-center text-xs text-slate-600 font-mono">AWAITING DATA...</div>;
@@ -432,9 +416,6 @@ function GapDisplay({ results }: { results: ResultRow[] }) {
   );
 }
 
-// ==========================================
-// Pattern Engine V3: variable-length matching, weighted recency, and backtesting
-// ==========================================
 interface NGramResult {
   nextSymbol: SymbolId;
   occurrences: number;
@@ -452,8 +433,6 @@ interface PatternAnalysis {
 }
 
 function analyzePattern(history: ResultRow[], minMatches = 2): PatternAnalysis {
-  // Accuracy recovery: use the original engine's pattern order, minimum support,
-  // and raw-frequency ranking. Recency weighting is intentionally disabled.
   const lengths = [3, 4, 2];
   const empty: PatternAnalysis = { predictions: [], usedPatternLength: 0, matchCount: 0, quality: 0, support: 0, targetSeq: [] };
   for (const len of lengths) {
@@ -493,7 +472,6 @@ function getNGramPredictions(results: ResultRow[]) {
   return analyzePattern(results, 2);
 }
 
-
 interface BacktestMetrics {
   trials: number;
   top1Hits: number;
@@ -503,7 +481,6 @@ interface BacktestMetrics {
 }
 function runWalkForwardBacktest(results: ResultRow[], minHistory = 8): BacktestMetrics {
   let trials = 0, top1Hits = 0, top3Hits = 0;
-  // At each step, only prior rows are passed to the engine (no future leakage).
   for (let i = minHistory; i < results.length; i++) {
     const analysis = analyzePattern(results.slice(0, i), 2);
     if (!analysis.predictions.length) continue;
@@ -514,7 +491,6 @@ function runWalkForwardBacktest(results: ResultRow[], minHistory = 8): BacktestM
   }
   return { trials, top1Hits, top3Hits, top1Rate: trials ? top1Hits / trials * 100 : 0, top3Rate: trials ? top3Hits / trials * 100 : 0 };
 }
-
 
 function SequencePredictor({ results }: { results: ResultRow[] }) {
   if (results.length < 5) {
@@ -579,7 +555,6 @@ function SequencePredictor({ results }: { results: ResultRow[] }) {
   );
 }
 
-
 function PatternQualityPanel({ results }: { results: ResultRow[] }) {
   const analysis = analyzePattern(results, 3);
   const backtest = runWalkForwardBacktest(results);
@@ -615,11 +590,6 @@ function PatternQualityPanel({ results }: { results: ResultRow[] }) {
   );
 }
 
-
-// ==========================================
-// CSV Import
-// ==========================================
-// CSV parser supports quoted fields, escaped quotes, commas inside quotes, and CRLF.
 function parseCSV(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -656,8 +626,7 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
-
-async function importCSV(file: File, onDone: () => Promise<void>) {
+async function importCSV(file: File, onDone: () => Promise<unknown>) {
   try {
     const text = await file.text();
     const rows = parseCSV(text);
@@ -680,7 +649,6 @@ async function importCSV(file: File, onDone: () => Promise<void>) {
     let skipped = 0;
     const dataRows = rows.slice(1);
 
-    // Sequential requests avoid overwhelming the API and preserve file order.
     for (const row of dataRows) {
       const rawId = row[symbolColIndex]?.trim().replace(/^['"]|['"]$/g, '');
       if (!rawId || !validIds.has(rawId as SymbolId)) {
