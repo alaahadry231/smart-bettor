@@ -718,8 +718,24 @@ function StatisticalPredictor({
 
   const { deviations, windowSize, momentum } = analyzeEnhancedDeviation(results);
 
-  const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
-  const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
+    // 👇 V7: إجبار النظام على اختيار 3 خضار و 2 لحوم مع مراعاة الغياب الكبير
+  const veggieDeviations = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable');
+  const animalDeviations = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal');
+
+  // 1. نختار أعلى 3 خضار
+  const veggiePicks = veggieDeviations.slice(0, 3);
+
+  // 2. نختار اللحوم: إذا في لحمة غيابها > 2.0 (زي الديك)، ناخدها هي الأولى، وبعدها الأعلى نقاط
+  let animalPicks = [...animalDeviations];
+  const superGapAnimal = animalDeviations.find(d => d.relativeGap > 2.0);
+  
+  if (superGapAnimal) {
+    // إذا في لحمة غيابها كبير جداً، ناخدها هي أولاً، وبعدها نكمل بالباقي حسب النقاط
+    animalPicks = [superGapAnimal, ...animalDeviations.filter(d => d.symbol !== superGapAnimal.symbol)];
+  }
+  animalPicks = animalPicks.slice(0, 2);
+
+  // 3. ندمجهم ونرتبهم حسب النقاط للعرض
   const finalPicks = [...veggiePicks, ...animalPicks].sort((a, b) => b.totalScore - a.totalScore);
 
   const doubleBonusCount = finalPicks.filter(d => d.doubleBonus).length;
