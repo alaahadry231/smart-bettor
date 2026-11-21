@@ -433,7 +433,7 @@ interface EnhancedDeviationData {
   gapScore: number;
   momentumBonus: number;
   streakBonus: number;
-  sequenceBonus: number; // 👈 أضفنا هاد
+  sequenceBonus: number;
   totalScore: number;
   doubleBonus: boolean;
 }
@@ -569,7 +569,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
       momentumBonus = (momentum.vegMomentum - 70) * 0.5;
     }
 
-        // 👇 مكافأة التكرار (بناءً على التكرار الموزون)
+    // 👇 مكافأة التكرار (بناءً على التكرار الموزون)
     const streakValue = streaks[sym.id] || 0;
     let streakBonus = 0;
     if (streakValue >= 12) streakBonus = 15;
@@ -579,12 +579,17 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     const seqBonusForThisSymbol = sequenceBonus[sym.id] || 0; // 👈 بونص التسلسل للرمز
 
     const doubleBonus = deviation < 0 && relativeGap > 1.2;
-    let totalScore = (deviationScore * 0.3) + (gapScore * 0.3) + (momentumBonus * 0.15) + (streakBonus * 0.15) + (seqBonusForThisSymbol * 0.1);
+    
+    // 👇 توزيع الأوزان الجديد (بناءً على تحليل الصور)
+    // الانحراف 25%، الغياب 40% (زاد)، الزخم 10%، التكرار 10%، التسلسل 15%
+    let totalScore = (deviationScore * 0.25) + (gapScore * 0.40) + (momentumBonus * 0.10) + (streakBonus * 0.10) + (seqBonusForThisSymbol * 0.15);
+    
     if (doubleBonus) totalScore += 10;
 
-    // شرط خاص للحوم
+    // 👇 شرط اللحوم الذكي (بناءً على الصور):
+    // ما نخفض اللحوم إلا إذا كانت فعلاً "مش مستحقة" (لا غياب، لا تكرار، لا تسلسل، وما ظهرت مؤخراً)
     if (sym.type === 'animal') {
-      if (relativeGap < 1.5 && streakValue  < 2 && seqBonusForThisSymbol === 0) {
+      if (relativeGap < 1.2 && streakValue < 2 && seqBonusForThisSymbol === 0) {
         totalScore = totalScore * 0.5;
       }
     }
@@ -601,7 +606,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
       gapScore,
       momentumBonus,
       streakBonus,
-      sequenceBonus: seqBonusForThisSymbol, // 👈 إضافة الحقل
+      sequenceBonus: seqBonusForThisSymbol, 
       totalScore: Math.min(100, totalScore),
       doubleBonus,
     };
