@@ -488,26 +488,14 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     }
   });
 
-  // 👇 حساب سلسلة التكرار (Streak) لكل رمز
+    // 👇 حساب التكرار في آخر 10 نتائج (بدل السلسلة المتصلة)
   const streaks: Record<string, number> = {};
   SYMBOLS.forEach(s => { streaks[s.id] = 0; });
-  let currentStreakSymbol: string | null = null;
-  let currentStreakCount = 0;
-  for (let i = results.length - 1; i >= 0; i--) {
-    const sym = results[i].symbol_id;
-    if (currentStreakSymbol === null) {
-      currentStreakSymbol = sym;
-      currentStreakCount = 1;
-    } else if (currentStreakSymbol === sym) {
-      currentStreakCount++;
-    } else {
-      streaks[currentStreakSymbol] = currentStreakCount;
-      break;
-    }
-  }
-  if (currentStreakSymbol !== null) {
-    streaks[currentStreakSymbol] = currentStreakCount;
-  }
+  
+  const last10 = results.slice(-10);
+  last10.forEach(r => {
+    streaks[r.symbol_id] = (streaks[r.symbol_id] || 0) + 1;
+  });
 
   const deviations: EnhancedDeviationData[] = SYMBOLS.map(sym => {
     const actualCount = counts[sym.id];
@@ -529,12 +517,12 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
       momentumBonus = (momentum.vegMomentum - 70) * 0.5;
     }
 
-    // 👇 مكافأة سلسلة التكرار (Streak Bonus)
-    const streak = streaks[sym.id] || 0;
+    // 👇 مكافأة التكرار (بناءً على آخر 10 نتائج)
+    const streakCount = streaks[sym.id] || 0;
     let streakBonus = 0;
-    if (streak === 1) streakBonus = 15;
-    else if (streak === 2) streakBonus = 10;
-    else if (streak === 3) streakBonus = 5;
+    if (streakCount === 1) streakBonus = 5;
+    else if (streakCount === 2) streakBonus = 10;
+    else if (streakCount >= 3) streakBonus = 15;
 
     const doubleBonus = deviation < 0 && relativeGap > 1.2;
     let totalScore = (deviationScore * 0.4) + (gapScore * 0.3) + (momentumBonus * 0.15) + (streakBonus * 0.15);
