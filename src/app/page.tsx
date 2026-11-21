@@ -455,11 +455,11 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
   windowSize: number;
   momentum: { meatMomentum: number; vegMomentum: number };
 } {
-  if (results.length < 20) {
+  if (results.length < 5) {
     return { deviations: [], windowSize: 0, momentum: { meatMomentum: 0, vegMomentum: 0 } };
-  }
+}
 
-  const windowSize = Math.min(100, results.length);
+  const windowSize = results.length; // استخدم كل النتائج المتاحة
   const window = results.slice(-windowSize);
   const momentum = getRecentMomentum(results);
 
@@ -537,15 +537,15 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 // مكون التوقعات (Reversion V3) - مع فلتر 3+2
 // ==========================================
 function StatisticalPredictor({ results }: { results: ResultRow[] }) {
-  if (results.length < 20) {
+  if (results.length < 5) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
         <ShieldAlert className="w-8 h-8 text-amber-500/50 mb-3" />
         <p className="text-sm text-slate-400 font-medium">بحاجة إلى سجل أكبر</p>
-        <p className="text-[10px] text-slate-600 mt-1 font-mono">MINIMUM 20 RESULTS</p>
+        <p className="text-[10px] text-slate-600 mt-1 font-mono">MINIMUM 5 RESULTS</p>
       </div>
     );
-  }
+}
 
   const { deviations, windowSize, momentum } = analyzeEnhancedDeviation(results);
 
