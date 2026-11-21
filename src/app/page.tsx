@@ -517,7 +517,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
       momentumBonus = (momentum.vegMomentum - 70) * 0.5;
     }
 
-    // 👇 مكافأة التكرار (بناءً على آخر 10 نتائج)
+        // 👇 مكافأة التكرار (بناءً على آخر 10 نتائج)
     const streakCount = streaks[sym.id] || 0;
     let streakBonus = 0;
     if (streakCount === 1) streakBonus = 5;
@@ -527,6 +527,13 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     const doubleBonus = deviation < 0 && relativeGap > 1.2;
     let totalScore = (deviationScore * 0.4) + (gapScore * 0.3) + (momentumBonus * 0.15) + (streakBonus * 0.15);
     if (doubleBonus) totalScore += 10;
+
+    // 👇 شرط خاص للحوم: ما نتوقعها إلا إذا كانت غايبة كتير أو ظهرت كتير مؤخراً
+    if (sym.type === 'animal') {
+      if (relativeGap < 1.5 && streakCount < 2) {
+        totalScore = totalScore * 0.5; // تخفيض النقاط للنصف إذا ما كانت مستحقة
+      }
+    }
 
     return {
       symbol: sym.id,
