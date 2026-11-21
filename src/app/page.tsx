@@ -31,7 +31,6 @@ export const SYMBOLS: SymbolInfo[] = [
   { id: 'fish',    name: 'سمكة',   emoji: '🐟', color: '#3B82F6', type: 'animal', multiplier: 25 },
 ];
 
-// الاحتمال النظري لكل رمز (من المضاعف)
 const THEORETICAL_WEIGHTS: Record<SymbolId, number> = (() => {
   const raw: Record<string, number> = {};
   let sum = 0;
@@ -188,7 +187,6 @@ export default function HomePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           
-          {/* لوحة التوقعات (التوازن الإحصائي) */}
           <div className="lg:col-span-5 row-span-2 relative group overflow-hidden rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(139,92,246,0.15),transparent_70%)]"></div>
             <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] overflow-hidden flex flex-col border border-white/[0.04]">
@@ -206,7 +204,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* وحدة الإدخال */}
           <div className="lg:col-span-7 relative group rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(6,182,212,0.05),transparent_50%)]"></div>
             <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] p-6 border border-white/[0.04]">
@@ -251,7 +248,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* تدفق الأحداث */}
           <div className="lg:col-span-7 relative group rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] p-6 border border-white/[0.04]">
                <div className="flex items-center justify-between mb-4">
@@ -264,7 +260,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* إحصائيات سريعة */}
           <div className="lg:col-span-3 grid grid-cols-1 gap-5">
             <div className="relative rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
               <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] p-5 border border-white/[0.04] flex flex-col justify-center">
@@ -282,7 +277,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* التكرار والغياب */}
           <div className="lg:col-span-5 relative rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] p-6 border border-white/[0.04]">
               <div className="flex items-center justify-between mb-6">
@@ -307,7 +301,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* لوحة الانحراف */}
           <div className="lg:col-span-12 relative rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="relative rounded-[1.85rem] bg-[#0B0C10] p-6 border border-white/[0.04]">
               <div className="flex items-center justify-between mb-5">
@@ -430,16 +423,16 @@ function GapDisplay({ results }: { results: ResultRow[] }) {
 
 interface EnhancedDeviationData {
   symbol: SymbolId;
-  actualPct: number;          // النسبة الفعلية (آخر 100)
-  theoreticalPct: number;      // النسبة النظرية
-  deviation: number;           // الانحراف (فعلي - نظري)
-  deviationScore: number;      // نقاط الانحراف
+  actualPct: number;
+  theoreticalPct: number;
+  deviation: number;
+  deviationScore: number;
   currentGap: number;
-  avgGap: number;              // متوسط الفجوة
-  relativeGap: number;         // الغياب النسبي (gap / avgGap)
-  gapScore: number;            // نقاط الغياب
-  totalScore: number;          // النقاط النهائية
-  doubleBonus: boolean;        // مكافأة مزدوجة
+  avgGap: number;
+  relativeGap: number;
+  gapScore: number;
+  totalScore: number;
+  doubleBonus: boolean;
 }
 
 function analyzeEnhancedDeviation(results: ResultRow[]): {
@@ -451,16 +444,13 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     return { deviations: [], windowSize: 0, totalAnalyzed: 0 };
   }
 
-  // 1. نافذة زمنية متحركة: آخر 100 نتيجة
   const windowSize = Math.min(100, results.length);
   const window = results.slice(-windowSize);
 
-  // 2. التكرار الفعلي في النافذة
   const counts: Record<string, number> = {};
   SYMBOLS.forEach(s => { counts[s.id] = 0; });
   window.forEach(r => { counts[r.symbol_id]++; });
 
-  // 3. الغياب الحالي (من كل النتائج)
   const currentGaps: Record<string, number> = {};
   SYMBOLS.forEach(s => {
     let gap = 0;
@@ -471,13 +461,12 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     currentGaps[s.id] = gap;
   });
 
-  // 4. متوسط الفجوة لكل رمز (من كل النتائج)
   const avgGaps: Record<string, number> = {};
   SYMBOLS.forEach(s => {
     const indexes: number[] = [];
     results.forEach((r, i) => { if (r.symbol_id === s.id) indexes.push(i); });
     if (indexes.length < 2) {
-      avgGaps[s.id] = 10; // افتراضي
+      avgGaps[s.id] = 10;
     } else {
       let sum = 0;
       for (let i = 1; i < indexes.length; i++) sum += indexes[i] - indexes[i - 1];
@@ -485,34 +474,20 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     }
   });
 
-  // 5. حساب الانحرافات
   const deviations: EnhancedDeviationData[] = SYMBOLS.map(sym => {
     const actualCount = counts[sym.id];
     const actualPct = (actualCount / windowSize) * 100;
     const theoreticalPct = THEORETICAL_WEIGHTS[sym.id];
-    
-    // الانحراف
     const deviation = actualPct - theoreticalPct;
-    
-    // نقاط الانحراف (كل ما كان سالب أكبر، النقاط أعلى)
     const normalizedDev = -deviation;
     const deviationScore = Math.max(0, Math.min(100, normalizedDev * 2 + 50));
-    
-    // الغياب النسبي
     const currentGap = currentGaps[sym.id];
     const avgGap = avgGaps[sym.id];
     const relativeGap = avgGap > 0 ? currentGap / avgGap : 0;
-    
-    // نقاط الغياب (كل ما كان الغياب أكتر من المتوسط، النقاط أعلى)
     const gapScore = Math.min(100, relativeGap * 50);
-    
-    // المكافأة المزدوجة: انحراف سلبي + غياب عالي
     const doubleBonus = deviation < 0 && relativeGap > 1.2;
-    
-    // النقاط النهائية
     let totalScore = (deviationScore * 0.6) + (gapScore * 0.4);
-    if (doubleBonus) totalScore += 15; // مكافأة إضافية
-    
+    if (doubleBonus) totalScore += 15;
     return {
       symbol: sym.id,
       actualPct,
@@ -532,7 +507,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 }
 
 // ==========================================
-// مكون التوقعات (Reversion V2)
+// مكون التوقعات (Reversion V2) - مع فلتر 3+2
 // ==========================================
 function StatisticalPredictor({ results }: { results: ResultRow[] }) {
   if (results.length < 20) {
@@ -547,11 +522,12 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
 
   const { deviations, windowSize } = analyzeEnhancedDeviation(results);
 
-  // نختار 5 رموز عامة (بدون فلتر إجباري)
-  const finalPicks = deviations.slice(0, 5);
+  // 👇 الفلتر الجديد: 3 خضار + 2 لحوم
+  const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
+  const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
+  const finalPicks = [...veggiePicks, ...animalPicks].sort((a, b) => b.totalScore - a.totalScore);
 
-  // عدد الرموز اللي عندها مكافأة مزدوجة
-  const doubleBonusCount = deviations.filter(d => d.doubleBonus).length;
+  const doubleBonusCount = finalPicks.filter(d => d.doubleBonus).length;
 
   return (
     <div className="flex-1 flex flex-col justify-between gap-5">
@@ -570,7 +546,6 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
           </div>
         )}
 
-        {/* التوقعات */}
         <div className="grid grid-cols-5 gap-2">
           {finalPicks.map((p, i) => {
             const sym = SYMBOLS.find(s => s.id === p.symbol)!;
@@ -597,7 +572,6 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
         </div>
       </div>
 
-      {/* التفاصيل */}
       <div className="space-y-2">
         <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
         {finalPicks.map(p => {
