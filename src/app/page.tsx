@@ -531,11 +531,22 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     }
   });
 
+  // 👇 حساب التكرار الموزون لكل النتائج (مع إعطاء وزن أكبر للنتائج الحديثة)
   const streaks: Record<string, number> = {};
   SYMBOLS.forEach(s => { streaks[s.id] = 0; });
-  const last10 = results.slice(-10);
-  last10.forEach(r => {
-    streaks[r.symbol_id] = (streaks[r.symbol_id] || 0) + 1;
+  
+  // نمر على كل النتائج من الأقدم للأحدث
+  results.forEach((r, index) => {
+    // وزن يعتمد على موقع النتيجة (النتائج الأخيرة وزنها أعلى)
+    // نقسم على 100 عشان ما تصير الأرقام ضخمة جداً
+    const recencyWeight = 1 + (index / results.length) * 5; 
+    streaks[r.symbol_id] = (streaks[r.symbol_id] || 0) + recencyWeight;
+  });
+
+  // تطبيع القيم عشان تكون مقاربة للتكرار العادي (من 0 لـ 15)
+  const maxStreak = Math.max(...Object.values(streaks), 1);
+  Object.keys(streaks).forEach(k => {
+    streaks[k] = (streaks[k] / maxStreak) * 15;
   });
 
   const deviations: EnhancedDeviationData[] = SYMBOLS.map(sym => {
@@ -558,12 +569,12 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
       momentumBonus = (momentum.vegMomentum - 70) * 0.5;
     }
 
-    // مكافأة التكرار (آخر 10 نتائج)
-    const streakCount = streaks[sym.id] || 0;
+        // 👇 مكافأة التكرار (بناءً على التكرار الموزون)
+    const streakValue = streaks[sym.id] || 0;
     let streakBonus = 0;
-    if (streakCount === 1) streakBonus = 5;
-    else if (streakCount === 2) streakBonus = 10;
-    else if (streakCount >= 3) streakBonus = 15;
+    if (streakValue >= 12) streakBonus = 15;
+    else if (streakValue >= 8) streakBonus = 10;
+    else if (streakValue >= 4) streakBonus = 5;
 
     const seqBonusForThisSymbol = sequenceBonus[sym.id] || 0; // 👈 بونص التسلسل للرمز
 
@@ -573,7 +584,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 
     // شرط خاص للحوم
     if (sym.type === 'animal') {
-      if (relativeGap < 1.5 && streakCount < 2 && seqBonusForThisSymbol === 0) {
+      if (relativeGap < 1.5 && streakValue  < 2 && seqBonusForThisSymbol === 0) {
         totalScore = totalScore * 0.5;
       }
     }
