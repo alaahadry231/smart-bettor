@@ -52,6 +52,11 @@ export default function HomePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 👇 حالات جديدة للرابح والخاسر
+  const [wins, setWins] = useState<number>(0);
+  const [losses, setLosses] = useState<number>(0);
+  const [lastPickResult, setLastPickResult] = useState<'win' | 'loss' | null>(null);
+
   const fetchResults = useCallback(async (): Promise<void> => {
     try {
       const res = await fetch('/api/results', { cache: 'no-store' });
@@ -79,9 +84,41 @@ export default function HomePage() {
     })();
   }, [fetchResults]);
 
+  // 👇 استرجاع الإحصائيات من localStorage عند التحميل
+  useEffect(() => {
+    const savedWins = localStorage.getItem('smartBettor_wins');
+    const savedLosses = localStorage.getItem('smartBettor_losses');
+    if (savedWins) setWins(parseInt(savedWins, 10));
+    if (savedLosses) setLosses(parseInt(savedLosses, 10));
+  }, []);
+
+  // 👇 حفظ الإحصائيات في localStorage عند التغيير
+  useEffect(() => {
+    localStorage.setItem('smartBettor_wins', wins.toString());
+    localStorage.setItem('smartBettor_losses', losses.toString());
+  }, [wins, losses]);
+
   const handleAddSymbol = useCallback(async (symbolId: SymbolId) => {
     if (submitting) return;
     setSubmitting(true);
+
+    // 👇 1. نحسب التوقعات الحالية قبل ما نضيف النتيجة
+    const { deviations } = analyzeEnhancedDeviation(results);
+    const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
+    const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
+    const finalPicks = [...veggiePicks, ...animalPicks];
+    const wasInPicks = finalPicks.some(p => p.symbol === symbolId);
+
+    // 👇 2. نحدث الرابح/الخاسر
+    if (wasInPicks) {
+      setWins(prev => prev + 1);
+      setLastPickResult('win');
+    } else {
+      setLosses(prev => prev + 1);
+      setLastPickResult('loss');
+    }
+
+    // 👇 3. نضيف النتيجة للداتابيز
     try {
       const res = await fetch('/api/results', {
         method: 'POST',
@@ -95,7 +132,7 @@ export default function HomePage() {
       setError('تعذر إضافة النتيجة'); 
     }
     finally { setSubmitting(false); }
-  }, [submitting, fetchResults]);
+  }, [submitting, fetchResults, results]);
 
   const handleUndo = useCallback(async () => {
     if (submitting || results.length === 0) return;
@@ -199,7 +236,12 @@ export default function HomePage() {
                   </div>
                   <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION V3</span>
                 </div>
-                <StatisticalPredictor results={results} />
+                <StatisticalPredictor 
+                  results={results} 
+                  wins={wins} 
+                  losses={losses} 
+                  lastPickResult={lastPickResult} 
+                />
               </div>
             </div>
           </div>
@@ -618,7 +660,17 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 // ==========================================
 // مكون التوقعات (Reversion V3) - مع فلتر 3+2
 // ==========================================
-function StatisticalPredictor({ results }: { results: ResultRow[] }) {
+function StatisticalPredictor({ 
+  results, 
+  wins, 
+  losses, 
+  lastPickResult 
+}: { 
+  results: ResultRow[]; 
+  wins: number; 
+  losses: number; 
+  lastPickResult: 'win' | 'loss' | null 
+}) {
   if (results.length < 5) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
@@ -637,6 +689,10 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
 
   const doubleBonusCount = finalPicks.filter(d => d.doubleBonus).length;
   const isMeatHot = momentum.meatMomentum > 30;
+
+  // 👇 حساب النسبة
+  const totalBets = wins + losses;
+  const winRate = totalBets > 0 ? (wins / totalBets) * 100 : 0;
 
   return (
     <div className="flex-1 flex flex-col justify-between gap-5">
@@ -666,6 +722,33 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
             <span className="text-[10px] text-emerald-300">
               {doubleBonusCount} رموز إشارة مزدوجة (انحراف + غياب)
             </span>
+          </div>
+        )}
+
+        {/* 👇 بلوك الرابح والخاسر */}
+        <div className="grid grid-cols-3 gap-2 mt-4 mb-4">
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 text-center">
+            <div className="text-[9px] text-emerald-300 mb-1">رابح</div>
+            <div className="text-lg font-bold text-emerald-400 font-mono">{wins}</div>
+          </div>
+          <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-2 text-center">
+            <div className="text-[9px] text-rose-300 mb-1">خاسر</div>
+            <div className="text-lg font-bold text-rose-400 font-mono">{losses}</div>
+          </div>
+          <div className="bg-white/[0.02] border border-white/10 rounded-lg p-2 text-center">
+            <div className="text-[9px] text-slate-400 mb-1">نسبة النجاح</div>
+            <div className="text-lg font-bold text-white font-mono">{winRate.toFixed(1)}%</div>
+          </div>
+        </div>
+
+        {/* 👇 رسالة آخر نتيجة */}
+        {lastPickResult && (
+          <div className={`mb-4 p-2 rounded-lg text-center text-xs font-bold ${
+            lastPickResult === 'win' 
+              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+              : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+          }`}>
+            {lastPickResult === 'win' ? '✅ آخر نتيجة: رابح' : '❌ آخر نتيجة: خاسر'}
           </div>
         )}
 
