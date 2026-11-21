@@ -47,17 +47,13 @@ export default function HomePage() {
     try {
       const res = await fetch('/api/results', { cache: 'no-store' });
       if (!res.ok) throw new Error(`GET failed (${res.status})`);
-      
       const data = await res.json();
       if (!Array.isArray(data)) throw new Error('Data is not an array');
-
-      // التحويل الذكي: شلنا الفلترة الصارمة
       const validRows: ResultRow[] = data.map((row: any) => ({
         id: Number(row.id),
         symbol_id: row.symbol_id as SymbolId,
         created_at: row.created_at || new Date().toISOString()
       }));
-
       setResults(validRows);
       setError(null);
     } catch (e) {
@@ -324,7 +320,6 @@ export default function HomePage() {
 function LastResults({ results }: { results: ResultRow[] }) {
   const last = results.slice(-20).reverse();
   if (last.length === 0) return <div className="py-8 text-center text-xs text-slate-600 font-mono">AWAITING DATA...</div>;
-  
   return (
     <div className="flex flex-wrap gap-2">
       {last.map((row, index) => {
@@ -349,9 +344,7 @@ function FrequencyList({ results }: { results: ResultRow[] }) {
   const counts: Record<string, number> = {};
   SYMBOLS.forEach(s => { counts[s.id] = 0; });
   results.forEach(s => { counts[s.symbol_id]++; });
-  
   const sortedSymbols = [...SYMBOLS].sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0));
-  
   return (
     <div className="space-y-4">
       {sortedSymbols.map(sym => {
@@ -366,8 +359,7 @@ function FrequencyList({ results }: { results: ResultRow[] }) {
                 <span className="text-slate-500">{count} ({pct.toFixed(0)}%)</span>
               </div>
               <div className="h-1.5 bg-white/[0.03] rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-1000 ease-out relative" 
-                  style={{ width: `${Math.max(pct, 1)}%`, background: `linear-gradient(90deg, ${sym.color}aa, ${sym.color})` }}>
+                <div className="h-full rounded-full transition-all duration-1000 ease-out relative" style={{ width: `${Math.max(pct, 1)}%`, background: `linear-gradient(90deg, ${sym.color}aa, ${sym.color})` }}>
                   <div className="absolute inset-0 bg-white/20 animate-[shimmer_2s_infinite]"></div>
                 </div>
               </div>
@@ -388,9 +380,7 @@ function GapDisplay({ results }: { results: ResultRow[] }) {
     }
     return { ...sym, gap, neverAppeared: !results.some(r => r.symbol_id === sym.id) };
   });
-  
   const sortedGaps = [...gaps].sort((a, b) => b.gap - a.gap);
-
   return (
     <div className="space-y-2">
       {sortedGaps.slice(0, 6).map(g => {
@@ -401,7 +391,6 @@ function GapDisplay({ results }: { results: ResultRow[] }) {
         else if (g.gap > 20) { status = 'Critical'; colorClass = 'text-rose-400'; barColor = 'bg-rose-500'; }
         else if (g.gap >= 10) { status = 'High'; colorClass = 'text-amber-400'; barColor = 'bg-amber-500'; }
         else if (g.gap === 0) { status = 'Active'; colorClass = 'text-emerald-400'; barColor = 'bg-emerald-500'; }
-        
         return (
           <div key={g.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/[0.02] transition-colors">
             <span className="text-base">{g.emoji}</span>
@@ -433,7 +422,7 @@ interface PatternAnalysis {
 }
 
 function analyzePattern(history: ResultRow[], minMatches = 4): PatternAnalysis {
-  const lengths = [4, 3, 2]; // نبدأ بالأطول (4) عشان نضمن دقة أعلى
+  const lengths = [4, 3, 2];
   const empty: PatternAnalysis = { predictions: [], usedPatternLength: 0, matchCount: 0, quality: 0, support: 0, targetSeq: [] };
   for (const len of lengths) {
     if (history.length < len + 1) continue;
@@ -450,7 +439,14 @@ function analyzePattern(history: ResultRow[], minMatches = 4): PatternAnalysis {
       counts[next] = (counts[next] || 0) + 1;
       total++;
     }
-    if (total < minMatches) continue;
+
+    // 👇 التعديل الأول: تمييز الحيوانات عن الخضار
+    const lastSymbolInPattern = target[target.length - 1];
+    const lastSymbolInfo = SYMBOLS.find(s => s.id === lastSymbolInPattern);
+    const isAnimalPattern = lastSymbolInfo?.type === 'animal';
+    const requiredMatches = isAnimalPattern ? 2 : minMatches;
+    if (total < requiredMatches) continue;
+
     const predictions: NGramResult[] = Object.entries(counts).map(([symbol, count]) => ({
       nextSymbol: symbol as SymbolId,
       occurrences: count,
@@ -459,17 +455,20 @@ function analyzePattern(history: ResultRow[], minMatches = 4): PatternAnalysis {
       weightedScore: count / total * 100,
     })).sort((a, b) => b.probability - a.probability || b.occurrences - a.occurrences);
     const topShare = predictions[0]?.probability ?? 0;
-    const supportQuality = Math.min(total / 10, 1) * 35;
-    const specificity = len / 4 * 25;
-    const concentration = topShare * 0.4;
-    const quality = Math.round(Math.min(100, supportQuality + specificity + concentration));
+    
+    // تحسين حساب الجودة (أوزان أكثر واقعية)
+    const supportScore = Math.min(total / 20, 1) * 40;
+    const specificityScore = (len / 4) * 30;
+    const concentrationScore = topShare * 0.3;
+    const quality = Math.round(Math.min(100, supportScore + specificityScore + concentrationScore));
+    
     return { predictions, usedPatternLength: len, matchCount: total, quality, support: total, targetSeq: target };
   }
   return empty;
 }
 
 function getNGramPredictions(results: ResultRow[]) {
-  return analyzePattern(results, 4); // نطلب 4 مطابقات على الأقل
+  return analyzePattern(results, 4);
 }
 
 interface BacktestMetrics {
@@ -482,7 +481,7 @@ interface BacktestMetrics {
 function runWalkForwardBacktest(results: ResultRow[], minHistory = 8): BacktestMetrics {
   let trials = 0, top1Hits = 0, top3Hits = 0;
   for (let i = minHistory; i < results.length; i++) {
-const analysis = analyzePattern(results.slice(0, i), 4);
+    const analysis = analyzePattern(results.slice(0, i), 4);
     if (!analysis.predictions.length) continue;
     trials++;
     const actual = results[i].symbol_id;
@@ -512,9 +511,22 @@ function SequencePredictor({ results }: { results: ResultRow[] }) {
       </div>
     );
   }
-  const veggiePicks = analysis.predictions.filter(p => SYMBOLS.find(s => s.id === p.nextSymbol)?.type === 'vegetable').slice(0, 3);
-  const animalPicks = analysis.predictions.filter(p => SYMBOLS.find(s => s.id === p.nextSymbol)?.type === 'animal').slice(0, 2);
+
+  // 👇 التعديل الثاني: فلتر 3 خضار + 2 حيوانات
+  let veggiePicks = analysis.predictions.filter(p => SYMBOLS.find(s => s.id === p.nextSymbol)?.type === 'vegetable');
+  let animalPicks = analysis.predictions.filter(p => SYMBOLS.find(s => s.id === p.nextSymbol)?.type === 'animal');
+
+  if (animalPicks.length < 2) {
+    const missing = 2 - animalPicks.length;
+    const usedIds = new Set([...veggiePicks.slice(0,3), ...animalPicks].map(p => p.nextSymbol));
+    const extras = analysis.predictions.filter(p => !usedIds.has(p.nextSymbol)).slice(0, missing);
+    animalPicks = [...animalPicks, ...extras];
+  }
+
+  veggiePicks = veggiePicks.slice(0, 3);
+  animalPicks = animalPicks.slice(0, 2);
   const picks = [...veggiePicks, ...animalPicks].sort((a, b) => b.probability - a.probability);
+
   return (
     <div className="flex-1 flex flex-col justify-between gap-5">
       <div>
@@ -595,11 +607,9 @@ function parseCSV(text: string): string[][] {
   let row: string[] = [];
   let field = '';
   let inQuotes = false;
-
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     const next = text[i + 1];
-
     if (char === '"') {
       if (inQuotes && next === '"') {
         field += '"';
@@ -620,7 +630,6 @@ function parseCSV(text: string): string[][] {
       field += char;
     }
   }
-
   row.push(field.trim());
   if (row.some((cell) => cell.length > 0)) rows.push(row);
   return rows;
@@ -634,7 +643,6 @@ async function importCSV(file: File, onDone: () => Promise<unknown>) {
       alert('ملف CSV فارغ أو لا يحتوي على نتائج.');
       return;
     }
-
     const header = rows[0].map((cell) => cell.trim().toLowerCase());
     const symbolColIndex = header.findIndex((name) =>
       name === 'symbol_id' || name === 'symbol' || name.includes('symbol')
@@ -643,19 +651,16 @@ async function importCSV(file: File, onDone: () => Promise<unknown>) {
       alert('لم يتم العثور على عمود symbol_id أو symbol في الملف.');
       return;
     }
-
     const validIds = new Set(SYMBOLS.map((symbol) => symbol.id));
     let added = 0;
     let skipped = 0;
     const dataRows = rows.slice(1);
-
     for (const row of dataRows) {
       const rawId = row[symbolColIndex]?.trim().replace(/^['"]|['"]$/g, '');
       if (!rawId || !validIds.has(rawId as SymbolId)) {
         skipped++;
         continue;
       }
-
       try {
         const response = await fetch('/api/results', {
           method: 'POST',
@@ -669,7 +674,6 @@ async function importCSV(file: File, onDone: () => Promise<unknown>) {
         skipped++;
       }
     }
-
     await onDone();
     alert(`اكتمل الاستيراد: ${added} نتيجة\n${skipped ? `تم تجاهل ${skipped} صف بسبب خطأ أو قيمة غير صالحة.` : 'لم يتم تجاهل أي صف.'}`);
   } catch (error) {
