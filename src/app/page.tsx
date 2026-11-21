@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { 
   RotateCcw, Trash2, Activity, Crown,
   Target, BarChart3, Upload,
-  ShieldAlert, Database, Cpu, Radio, Gauge, Scale, ArrowDownRight
+  ShieldAlert, Database, Cpu, Radio, Gauge, Scale, ArrowDownRight, TrendingUp
 } from 'lucide-react';
 
 export type SymbolId = 
@@ -31,18 +31,13 @@ export const SYMBOLS: SymbolInfo[] = [
   { id: 'fish',    name: 'سمكة',   emoji: '🐟', color: '#3B82F6', type: 'animal', multiplier: 25 },
 ];
 
-// حساب الوزن النظري (1/المضاعف) لكل رمز
+// الاحتمال النظري لكل رمز (من المضاعف)
 const THEORETICAL_WEIGHTS: Record<SymbolId, number> = (() => {
   const raw: Record<string, number> = {};
   let sum = 0;
-  SYMBOLS.forEach(s => {
-    raw[s.id] = 1 / s.multiplier;
-    sum += raw[s.id];
-  });
+  SYMBOLS.forEach(s => { raw[s.id] = 1 / s.multiplier; sum += raw[s.id]; });
   const normalized: Record<string, number> = {};
-  SYMBOLS.forEach(s => {
-    normalized[s.id] = (raw[s.id] / sum) * 100; // النسبة المئوية المتوقعة
-  });
+  SYMBOLS.forEach(s => { normalized[s.id] = (raw[s.id] / sum) * 100; });
   return normalized as Record<SymbolId, number>;
 })();
 
@@ -159,7 +154,7 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-sm font-bold text-white tracking-wide">الراهن الذكي</h1>
-              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Statistical Reversion</p>
+              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Statistical Reversion V2</p>
             </div>
           </div>
           
@@ -204,7 +199,7 @@ export default function HomePage() {
                     <Scale className="w-5 h-5 text-amber-400" />
                     <span className="text-sm font-semibold text-white tracking-wide">محرك التوازن الإحصائي</span>
                   </div>
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION</span>
+                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION V2</span>
                 </div>
                 <StatisticalPredictor results={results} />
               </div>
@@ -312,14 +307,14 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* لوحة تحليل الانحراف */}
+          {/* لوحة الانحراف */}
           <div className="lg:col-span-12 relative rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="relative rounded-[1.85rem] bg-[#0B0C10] p-6 border border-white/[0.04]">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-sm font-semibold text-white flex items-center gap-2">
                   <Gauge className="w-4 h-4 text-violet-400" /> لوحة الانحراف الإحصائي (Deviation Panel)
                 </h2>
-                <span className="text-[9px] font-mono text-slate-500">THEORY vs ACTUAL</span>
+                <span className="text-[9px] font-mono text-slate-500">ROLLING 100 · THEORY vs ACTUAL</span>
               </div>
               <DeviationPanel results={results} />
             </div>
@@ -331,7 +326,7 @@ export default function HomePage() {
       <footer className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 border-t border-white/[0.04] mt-6">
         <div className="flex items-center justify-between text-[10px] text-slate-600 font-mono tracking-widest uppercase">
           <span>Smart Bettor Intelligence</span>
-          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V4.0 · Reversion</span>
+          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V4.1 · Reversion V2</span>
         </div>
       </footer>
     </main>
@@ -430,100 +425,114 @@ function GapDisplay({ results }: { results: ResultRow[] }) {
 }
 
 // ==========================================
-// المحرك الإحصائي (Statistical Reversion)
+// المحرك الإحصائي (Reversion V2)
 // ==========================================
 
-interface DeviationData {
+interface EnhancedDeviationData {
   symbol: SymbolId;
-  actualCount: number;
-  actualPct: number;
-  theoreticalPct: number;
-  deviation: number;        // الانحراف (فعلي - نظري)
-  deviationScore: number;   // نقاط الانحراف (0-100)
-  gap: number;
-  gapScore: number;         // نقاط الغياب (0-100)
-  totalScore: number;       // النقاط النهائية
+  actualPct: number;          // النسبة الفعلية (آخر 100)
+  theoreticalPct: number;      // النسبة النظرية
+  deviation: number;           // الانحراف (فعلي - نظري)
+  deviationScore: number;      // نقاط الانحراف
+  currentGap: number;
+  avgGap: number;              // متوسط الفجوة
+  relativeGap: number;         // الغياب النسبي (gap / avgGap)
+  gapScore: number;            // نقاط الغياب
+  totalScore: number;          // النقاط النهائية
+  doubleBonus: boolean;        // مكافأة مزدوجة
 }
 
-function analyzeDeviation(results: ResultRow[]): {
-  deviations: DeviationData[];
-  totalCount: number;
-  entropy: number;         // مقياس العشوائية (0-100)
+function analyzeEnhancedDeviation(results: ResultRow[]): {
+  deviations: EnhancedDeviationData[];
+  windowSize: number;
+  totalAnalyzed: number;
 } {
-  const total = results.length;
-  if (total === 0) return { deviations: [], totalCount: 0, entropy: 0 };
+  if (results.length < 20) {
+    return { deviations: [], windowSize: 0, totalAnalyzed: 0 };
+  }
 
-  // 1. حساب التكرار الفعلي
+  // 1. نافذة زمنية متحركة: آخر 100 نتيجة
+  const windowSize = Math.min(100, results.length);
+  const window = results.slice(-windowSize);
+
+  // 2. التكرار الفعلي في النافذة
   const counts: Record<string, number> = {};
   SYMBOLS.forEach(s => { counts[s.id] = 0; });
-  results.forEach(r => { counts[r.symbol_id]++; });
+  window.forEach(r => { counts[r.symbol_id]++; });
 
-  // 2. حساب الغياب الحالي
-  const gaps: Record<string, number> = {};
+  // 3. الغياب الحالي (من كل النتائج)
+  const currentGaps: Record<string, number> = {};
   SYMBOLS.forEach(s => {
     let gap = 0;
     for (let i = results.length - 1; i >= 0; i--) {
       if (results[i].symbol_id === s.id) break;
       gap++;
     }
-    gaps[s.id] = gap;
+    currentGaps[s.id] = gap;
   });
 
-  // 3. حساب أقصى غياب ممكن (لتطبيع النقاط)
-  const maxGap = Math.max(...Object.values(gaps), 1);
+  // 4. متوسط الفجوة لكل رمز (من كل النتائج)
+  const avgGaps: Record<string, number> = {};
+  SYMBOLS.forEach(s => {
+    const indexes: number[] = [];
+    results.forEach((r, i) => { if (r.symbol_id === s.id) indexes.push(i); });
+    if (indexes.length < 2) {
+      avgGaps[s.id] = 10; // افتراضي
+    } else {
+      let sum = 0;
+      for (let i = 1; i < indexes.length; i++) sum += indexes[i] - indexes[i - 1];
+      avgGaps[s.id] = sum / (indexes.length - 1);
+    }
+  });
 
-  // 4. حساب الانحرافات
-  const deviations: DeviationData[] = SYMBOLS.map(sym => {
+  // 5. حساب الانحرافات
+  const deviations: EnhancedDeviationData[] = SYMBOLS.map(sym => {
     const actualCount = counts[sym.id];
-    const actualPct = (actualCount / total) * 100;
+    const actualPct = (actualCount / windowSize) * 100;
     const theoreticalPct = THEORETICAL_WEIGHTS[sym.id];
     
-    // الانحراف (سالب يعني ظهر أقل من المتوقع)
+    // الانحراف
     const deviation = actualPct - theoreticalPct;
     
-    // نقاط الانحراف: كل ما كان الانحراف سالب أكبر، النقاط أعلى
-    // نطبع القيمة عشان تكون بين 0 و 100
-    const normalizedDeviation = -deviation; // نقلب الإشارة عشان السالب يصير موجب
-    const deviationScore = Math.max(0, Math.min(100, normalizedDeviation * 2 + 50));
+    // نقاط الانحراف (كل ما كان سالب أكبر، النقاط أعلى)
+    const normalizedDev = -deviation;
+    const deviationScore = Math.max(0, Math.min(100, normalizedDev * 2 + 50));
     
-    // نقاط الغياب
-    const gap = gaps[sym.id];
-    const gapScore = (gap / maxGap) * 100;
-
-    // النقاط النهائية: 60% انحراف + 40% غياب
-    const totalScore = (deviationScore * 0.6) + (gapScore * 0.4);
-
+    // الغياب النسبي
+    const currentGap = currentGaps[sym.id];
+    const avgGap = avgGaps[sym.id];
+    const relativeGap = avgGap > 0 ? currentGap / avgGap : 0;
+    
+    // نقاط الغياب (كل ما كان الغياب أكتر من المتوسط، النقاط أعلى)
+    const gapScore = Math.min(100, relativeGap * 50);
+    
+    // المكافأة المزدوجة: انحراف سلبي + غياب عالي
+    const doubleBonus = deviation < 0 && relativeGap > 1.2;
+    
+    // النقاط النهائية
+    let totalScore = (deviationScore * 0.6) + (gapScore * 0.4);
+    if (doubleBonus) totalScore += 15; // مكافأة إضافية
+    
     return {
       symbol: sym.id,
-      actualCount,
       actualPct,
       theoreticalPct,
       deviation,
       deviationScore,
-      gap,
+      currentGap,
+      avgGap,
+      relativeGap,
       gapScore,
-      totalScore,
+      totalScore: Math.min(100, totalScore),
+      doubleBonus,
     };
   }).sort((a, b) => b.totalScore - a.totalScore);
 
-  // 5. حساب الـ Entropy (مقياس العشوائية)
-  let entropy = 0;
-  SYMBOLS.forEach(sym => {
-    const p = counts[sym.id] / total;
-    if (p > 0) entropy -= p * Math.log2(p);
-  });
-  const maxEntropy = Math.log2(8); // 3 (لأنه 8 رموز)
-  const normalizedEntropy = (entropy / maxEntropy) * 100;
-
-  return {
-    deviations,
-    totalCount: total,
-    entropy: normalizedEntropy,
-  };
+  return { deviations, windowSize, totalAnalyzed: windowSize };
 }
 
 // ==========================================
-// مكون التوقعات الإحصائية
+// مكون التوقعات (Reversion V2)
 // ==========================================
 function StatisticalPredictor({ results }: { results: ResultRow[] }) {
   if (results.length < 20) {
@@ -536,36 +545,30 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
     );
   }
 
-  const { deviations, entropy } = analyzeDeviation(results);
+  const { deviations, windowSize } = analyzeEnhancedDeviation(results);
 
-  // نختار 3 خضار + 2 حيوانات
-  const veggiePreds = deviations.filter(d => {
-    const sym = SYMBOLS.find(s => s.id === d.symbol);
-    return sym?.type === 'vegetable';
-  }).slice(0, 3);
+  // نختار 5 رموز عامة (بدون فلتر إجباري)
+  const finalPicks = deviations.slice(0, 5);
 
-  const animalPreds = deviations.filter(d => {
-    const sym = SYMBOLS.find(s => s.id === d.symbol);
-    return sym?.type === 'animal';
-  }).slice(0, 2);
-
-  const finalPicks = [...veggiePreds, ...animalPreds].sort((a, b) => b.totalScore - a.totalScore);
+  // عدد الرموز اللي عندها مكافأة مزدوجة
+  const doubleBonusCount = deviations.filter(d => d.doubleBonus).length;
 
   return (
     <div className="flex-1 flex flex-col justify-between gap-5">
       <div>
         <div className="flex items-center justify-between mb-4">
-          <span className="text-[10px] text-slate-500 font-mono uppercase">Statistical Deviation</span>
-          <span className="text-[10px] font-mono text-cyan-400">Entropy: {entropy.toFixed(0)}%</span>
+          <span className="text-[10px] text-slate-500 font-mono uppercase">Statistical Reversion</span>
+          <span className="text-[10px] font-mono text-cyan-400">Window: {windowSize}</span>
         </div>
         
-        {/* شريط الـ Entropy */}
-        <div className="flex items-center gap-3 mb-5">
-          <div className="flex-1 h-2 rounded-full bg-white/[0.04] overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-violet-500 to-cyan-400" style={{ width: `${entropy}%` }} />
+        {doubleBonusCount > 0 && (
+          <div className="mb-4 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-[10px] text-emerald-300">
+              {doubleBonusCount} رموز إشارة مزدوجة (انحراف + غياب)
+            </span>
           </div>
-          <span className="text-xs font-mono text-violet-300">{entropy > 80 ? 'عشوائي' : entropy > 60 ? 'متوازن' : 'منحاز'}</span>
-        </div>
+        )}
 
         {/* التوقعات */}
         <div className="grid grid-cols-5 gap-2">
@@ -573,8 +576,15 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
             const sym = SYMBOLS.find(s => s.id === p.symbol)!;
             return (
               <div key={p.symbol} className={`relative flex flex-col items-center justify-center p-3 rounded-xl border transition-all hover:-translate-y-1 ${
-                i === 0 ? 'bg-violet-500/10 border-violet-500/30' : 'bg-white/[0.02] border-white/5'
+                p.doubleBonus ? 'bg-emerald-500/10 border-emerald-500/40' :
+                i === 0 ? 'bg-violet-500/10 border-violet-500/30' : 
+                'bg-white/[0.02] border-white/5'
               }`}>
+                {p.doubleBonus && (
+                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center text-[8px]">
+                    ⚡
+                  </div>
+                )}
                 <div className="text-2xl mb-1">{sym.emoji}</div>
                 <div className="text-sm font-bold font-mono text-white">{p.totalScore.toFixed(0)}</div>
                 <div className="text-[9px] text-slate-500">
@@ -597,7 +607,7 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
               <span className="w-5 text-center">{sym.emoji}</span>
               <span className="text-slate-400 w-12">{sym.name}</span>
               <div className="flex-1 h-1 bg-white/[0.03] rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400" style={{ width: `${p.totalScore}%` }} />
+                <div className={`h-full rounded-full ${p.doubleBonus ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' : 'bg-gradient-to-r from-violet-500 to-cyan-400'}`} style={{ width: `${p.totalScore}%` }} />
               </div>
               <span className="text-slate-500 font-mono w-16 text-left">
                 {p.actualPct.toFixed(0)}% / {p.theoreticalPct.toFixed(0)}%
@@ -611,14 +621,14 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
 }
 
 // ==========================================
-// لوحة الانحراف الإحصائي
+// لوحة الانحراف (Reversion V2)
 // ==========================================
 function DeviationPanel({ results }: { results: ResultRow[] }) {
   if (results.length < 10) {
     return <p className="text-xs text-slate-600 text-center py-6">بيانات غير كافية للتحليل الإحصائي</p>;
   }
 
-  const { deviations } = analyzeDeviation(results);
+  const { deviations } = analyzeEnhancedDeviation(results);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -626,11 +636,14 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
         const sym = SYMBOLS.find(s => s.id === d.symbol)!;
         const isUnder = d.deviation < 0;
         return (
-          <div key={d.symbol} className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-4">
+          <div key={d.symbol} className={`rounded-xl border bg-white/[0.02] p-4 ${
+            d.doubleBonus ? 'border-emerald-500/30' : 'border-white/[0.05]'
+          }`}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="text-xl">{sym.emoji}</span>
                 <span className="text-xs text-slate-300">{sym.name}</span>
+                {d.doubleBonus && <span className="text-[10px]">⚡</span>}
               </div>
               <span className={`text-[10px] font-mono font-bold ${isUnder ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {d.deviation > 0 ? '+' : ''}{d.deviation.toFixed(1)}%
@@ -640,7 +653,7 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
             <div className="space-y-1.5 text-[10px]">
               <div className="flex justify-between">
                 <span className="text-slate-500">فعلي</span>
-                <span className="text-slate-300">{d.actualPct.toFixed(1)}% ({d.actualCount})</span>
+                <span className="text-slate-300">{d.actualPct.toFixed(1)}%</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">نظري</span>
@@ -648,7 +661,13 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">غياب</span>
-                <span className="text-slate-300">{d.gap}</span>
+                <span className="text-slate-300">{d.currentGap} / {d.avgGap.toFixed(1)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">نسبي</span>
+                <span className={`${d.relativeGap > 1.2 ? 'text-emerald-400' : 'text-slate-300'}`}>
+                  {d.relativeGap.toFixed(2)}x
+                </span>
               </div>
               <div className="flex justify-between pt-1.5 border-t border-white/5">
                 <span className="text-slate-500">النقاط</span>
@@ -656,9 +675,8 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
               </div>
             </div>
 
-            {/* شريط التقدم */}
             <div className="mt-2 h-1 bg-white/[0.03] rounded-full overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400" 
+              <div className={`h-full rounded-full ${d.doubleBonus ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' : 'bg-gradient-to-r from-violet-500 to-cyan-400'}`}
                 style={{ width: `${d.totalScore}%` }} />
             </div>
           </div>
