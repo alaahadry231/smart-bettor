@@ -640,19 +640,27 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 
     const doubleBonus = deviation < 0 && relativeGap > 1.2;
     
-    // 👇 توزيع الأوزان V6: الغياب 40%، الانحراف 10%، التسلسل 20%، التكرار 15%، الزخم 10%
+        // 👇 توزيع الأوزان V8 (النظام الطبيعي): الغياب 45%، التسلسل 20%، التكرار 15%، الانحراف 10%، الزخم 10%
     let totalScore = 
       (deviationScore * 0.10) + 
-      (gapScore * 0.40) + 
+      (gapScore * 0.45) + 
       (momentumBonus * 0.10) + 
       (streakBonus * 0.05) + 
       (seqBonusForThisSymbol * 0.20) +
       (repeatBonus * 0.15);
 
-    // 👇 مكافأة الغياب المطلق: دفعات متدرجة للرموز الغائبة
-    if (relativeGap >= 1.2) totalScore += 12;
-    if (relativeGap >= 1.5) totalScore += 8;
+    // 👇 مكافأة الغياب المطلق: الرموز اللي غيابها أكبر من 3 أضعاف المتوسط بتاخد دفعة قوية (زي الديك)
+    if (relativeGap >= 1.5) totalScore += 10;
     if (relativeGap >= 2.0) totalScore += 10;
+    if (relativeGap >= 2.5) totalScore += 15; // 👈 هاد اللي رح يخلي الديك (2.6) يطلع
+    if (relativeGap >= 3.0) totalScore += 20;
+
+    // 👇 لا نخفض اللحوم إلا إذا كانت فعلاً "مش مستحقة" (لا غياب، لا تكرار، لا تسلسل)
+    if (sym.type === 'animal') {
+      if (relativeGap < 1.0 && streakValue < 2 && seqBonusForThisSymbol === 0 && repeatRate < 5) {
+        totalScore = totalScore * 0.5; // نخفضها للنص بس إذا ما عندها أي سبب
+      }
+    }
     
     // 👇 مكافأة التكرار الفوري: إذا كان الرمز هو آخر نتيجة، وعنده تاريخ تكرار
     const isLastResult = results[results.length - 1]?.symbol_id === sym.id;
@@ -737,6 +745,7 @@ function StatisticalPredictor({
 
   // 3. ندمجهم ونرتبهم حسب النقاط للعرض
   const finalPicks = [...veggiePicks, ...animalPicks].sort((a, b) => b.totalScore - a.totalScore);
+
 
   const doubleBonusCount = finalPicks.filter(d => d.doubleBonus).length;
   const repeatCandidatesCount = finalPicks.filter(d => d.repeatBonus > 0).length;
