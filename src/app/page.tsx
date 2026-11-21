@@ -184,7 +184,7 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-sm font-bold text-white tracking-wide">الراهن الذكي</h1>
-              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Statistical Reversion V5</p>
+              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Statistical Reversion V6</p>
             </div>
           </div>
           
@@ -228,7 +228,7 @@ export default function HomePage() {
                     <Scale className="w-5 h-5 text-amber-400" />
                     <span className="text-sm font-semibold text-white tracking-wide">محرك التوازن الإحصائي</span>
                   </div>
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION V5</span>
+                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION V6</span>
                 </div>
                 <StatisticalPredictor 
                   results={results} 
@@ -355,7 +355,7 @@ export default function HomePage() {
       <footer className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 border-t border-white/[0.04] mt-6">
         <div className="flex items-center justify-between text-[10px] text-slate-600 font-mono tracking-widest uppercase">
           <span>Smart Bettor Intelligence</span>
-          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V5.0 · Reversion V5</span>
+          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V6.0 · Reversion V6</span>
         </div>
       </footer>
     </main>
@@ -454,7 +454,7 @@ function GapDisplay({ results }: { results: ResultRow[] }) {
 }
 
 // ==========================================
-// المحرك الإحصائي (Reversion V5)
+// المحرك الإحصائي (Reversion V6)
 // ==========================================
 
 interface EnhancedDeviationData {
@@ -640,27 +640,32 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 
     const doubleBonus = deviation < 0 && relativeGap > 1.2;
     
-    // 👇 توزيع الأوزان الجديد (V5): الغياب 35%، الانحراف 15%، التسلسل 20%، التكرار 15%، الزخم 10%
+    // 👇 توزيع الأوزان V6: الغياب 40%، الانحراف 10%، التسلسل 20%، التكرار 15%، الزخم 10%
     let totalScore = 
-      (deviationScore * 0.15) + 
-      (gapScore * 0.35) + 
+      (deviationScore * 0.10) + 
+      (gapScore * 0.40) + 
       (momentumBonus * 0.10) + 
       (streakBonus * 0.05) + 
       (seqBonusForThisSymbol * 0.20) +
       (repeatBonus * 0.15);
+
+    // 👇 مكافأة الغياب المطلق: دفعات متدرجة للرموز الغائبة
+    if (relativeGap >= 1.2) totalScore += 12;
+    if (relativeGap >= 1.5) totalScore += 8;
+    if (relativeGap >= 2.0) totalScore += 10;
     
-    // 👇 مكافأة إضافية للرموز اللي غيابها أعلى بكثير من المتوسط (زي الديك)
-    if (relativeGap > 2.0) {
-      totalScore += 15; 
-    } else if (relativeGap > 1.5) {
-      totalScore += 8;
+    // 👇 مكافأة التكرار الفوري: إذا كان الرمز هو آخر نتيجة، وعنده تاريخ تكرار
+    const isLastResult = results[results.length - 1]?.symbol_id === sym.id;
+    if (isLastResult && repeatRate >= 10) {
+      totalScore += 15;
     }
 
-    if (doubleBonus) totalScore += 10;
+    if (doubleBonus) totalScore += 5;
 
+    // 👇 تخفيض خفيف للحوم فقط إذا ما عندها أي سبب للظهور
     if (sym.type === 'animal') {
-      if (relativeGap < 1.2 && streakValue < 2 && seqBonusForThisSymbol === 0 && repeatRate < 10) {
-        totalScore = totalScore * 0.5;
+      if (relativeGap < 0.8 && streakValue < 1 && seqBonusForThisSymbol === 0 && repeatRate < 5) {
+        totalScore = totalScore * 0.7;
       }
     }
 
@@ -688,7 +693,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 }
 
 // ==========================================
-// مكون التوقعات (Reversion V5)
+// مكون التوقعات (Reversion V6)
 // ==========================================
 function StatisticalPredictor({ 
   results, 
@@ -728,7 +733,7 @@ function StatisticalPredictor({
     <div className="flex-1 flex flex-col justify-between gap-5">
       <div>
         <div className="flex items-center justify-between mb-4">
-          <span className="text-[10px] text-slate-500 font-mono uppercase">Statistical Reversion V5</span>
+          <span className="text-[10px] text-slate-500 font-mono uppercase">Statistical Reversion V6</span>
           <span className="text-[10px] font-mono text-cyan-400">Window: {windowSize}</span>
         </div>
 
@@ -848,7 +853,7 @@ function StatisticalPredictor({
 }
 
 // ==========================================
-// لوحة الانحراف (Reversion V5)
+// لوحة الانحراف (Reversion V6)
 // ==========================================
 function DeviationPanel({ results }: { results: ResultRow[] }) {
   if (results.length < 10) {
