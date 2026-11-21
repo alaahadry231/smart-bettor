@@ -184,7 +184,7 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-sm font-bold text-white tracking-wide">الراهن الذكي</h1>
-              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Statistical Reversion V6</p>
+              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Statistical Reversion V9</p>
             </div>
           </div>
           
@@ -228,7 +228,7 @@ export default function HomePage() {
                     <Scale className="w-5 h-5 text-amber-400" />
                     <span className="text-sm font-semibold text-white tracking-wide">محرك التوازن الإحصائي</span>
                   </div>
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION V6</span>
+                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION V9</span>
                 </div>
                 <StatisticalPredictor 
                   results={results} 
@@ -355,7 +355,7 @@ export default function HomePage() {
       <footer className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 border-t border-white/[0.04] mt-6">
         <div className="flex items-center justify-between text-[10px] text-slate-600 font-mono tracking-widest uppercase">
           <span>Smart Bettor Intelligence</span>
-          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V6.0 · Reversion V6</span>
+          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V9.0 · Reversion V9</span>
         </div>
       </footer>
     </main>
@@ -454,7 +454,7 @@ function GapDisplay({ results }: { results: ResultRow[] }) {
 }
 
 // ==========================================
-// المحرك الإحصائي (Reversion V6)
+// المحرك الإحصائي (Reversion V9)
 // ==========================================
 
 interface EnhancedDeviationData {
@@ -486,41 +486,47 @@ function getRecentMomentum(results: ResultRow[]): { meatMomentum: number; vegMom
   return { meatMomentum, vegMomentum };
 }
 
-function getSequenceAnimalBonus(results: ResultRow[]): Record<string, number> {
+// 👇 الجديد: محرك الأنماط التسلسلية (N-Gram) المدمج
+function getSequencePatternBonus(results: ResultRow[]): Record<string, number> {
   const bonus: Record<string, number> = {};
   SYMBOLS.forEach(s => { bonus[s.id] = 0; });
 
-  if (results.length < 10) return bonus;
+  if (results.length < 5) return bonus;
 
-  const patternLength = 3;
-  const targetSeq = results.slice(-patternLength).map(r => r.symbol_id);
+  // نجرب الأطوال: 3 رموز، ثم 2 رموز
+  const patternLengths = [3, 2]; 
   
-  const animalMatches: Record<string, number> = {};
-  let totalMatches = 0;
+  for (const len of patternLengths) {
+    if (results.length < len + 1) continue;
 
-  for (let i = 0; i <= results.length - patternLength - 1; i++) {
-    let isMatch = true;
-    for (let j = 0; j < patternLength; j++) {
-      if (results[i + j].symbol_id !== targetSeq[j]) {
-        isMatch = false;
-        break;
+    const targetSeq = results.slice(-len).map(r => r.symbol_id);
+    const matches: Record<string, number> = {};
+    let totalMatches = 0;
+
+    for (let i = 0; i <= results.length - len - 1; i++) {
+      let isMatch = true;
+      for (let j = 0; j < len; j++) {
+        if (results[i + j].symbol_id !== targetSeq[j]) {
+          isMatch = false;
+          break;
+        }
       }
-    }
-    
-    if (isMatch) {
-      const nextSymbol = results[i + patternLength].symbol_id;
-      const symInfo = SYMBOLS.find(s => s.id === nextSymbol);
-      if (symInfo?.type === 'animal') {
-        animalMatches[nextSymbol] = (animalMatches[nextSymbol] || 0) + 1;
+      
+      if (isMatch) {
+        const nextSymbol = results[i + len].symbol_id;
+        matches[nextSymbol] = (matches[nextSymbol] || 0) + 1;
         totalMatches++;
       }
     }
-  }
 
-  if (totalMatches >= 2) {
-    Object.entries(animalMatches).forEach(([symId, count]) => {
-      bonus[symId] = (count / totalMatches) * 30;
-    });
+    // إذا لقينا تطابقات كافية (2 على الأقل)
+    if (totalMatches >= 2) {
+      Object.entries(matches).forEach(([symId, count]) => {
+        // نعطي بونص بناءً على نسبة التطابق (حد أقصى 25 نقطة)
+        bonus[symId] = (count / totalMatches) * 25;
+      });
+      return bonus; // نوقف البحث بمجرد ما نلقى نمط مناسب
+    }
   }
 
   return bonus;
@@ -562,7 +568,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
   const windowSize = results.length;
   const window = results.slice(-windowSize);
   const momentum = getRecentMomentum(results);
-  const sequenceBonus = getSequenceAnimalBonus(results);
+  const sequenceBonus = getSequencePatternBonus(results); // 👈 استخدام محرك الأنماط الجديد
   const repeatRates = getRepeatRates(results);
 
   const counts: Record<string, number> = {};
@@ -640,40 +646,31 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 
     const doubleBonus = deviation < 0 && relativeGap > 1.2;
     
-        // 👇 توزيع الأوزان V8 (النظام الطبيعي): الغياب 45%، التسلسل 20%، التكرار 15%، الانحراف 10%، الزخم 10%
+    // 👇 الأوزان V9: الغياب 30%، التسلسل 25% (زاد)، الانحراف 15%، التكرار 15%، الزخم 10%، التكرار التاريخي 5%
     let totalScore = 
-      (deviationScore * 0.10) + 
-      (gapScore * 0.45) + 
+      (deviationScore * 0.15) + 
+      (gapScore * 0.30) + 
       (momentumBonus * 0.10) + 
       (streakBonus * 0.05) + 
-      (seqBonusForThisSymbol * 0.20) +
+      (seqBonusForThisSymbol * 0.25) + 
       (repeatBonus * 0.15);
 
-    // 👇 مكافأة الغياب المطلق: الرموز اللي غيابها أكبر من 3 أضعاف المتوسط بتاخد دفعة قوية (زي الديك)
-    if (relativeGap >= 1.5) totalScore += 10;
+    // مكافأة الغياب المطلق
+    if (relativeGap >= 1.2) totalScore += 8;
+    if (relativeGap >= 1.5) totalScore += 8;
     if (relativeGap >= 2.0) totalScore += 10;
-    if (relativeGap >= 2.5) totalScore += 15; // 👈 هاد اللي رح يخلي الديك (2.6) يطلع
-    if (relativeGap >= 3.0) totalScore += 20;
-
-    // 👇 لا نخفض اللحوم إلا إذا كانت فعلاً "مش مستحقة" (لا غياب، لا تكرار، لا تسلسل)
-    if (sym.type === 'animal') {
-      if (relativeGap < 1.0 && streakValue < 2 && seqBonusForThisSymbol === 0 && repeatRate < 5) {
-        totalScore = totalScore * 0.5; // نخفضها للنص بس إذا ما عندها أي سبب
-      }
-    }
     
-    // 👇 مكافأة التكرار الفوري: إذا كان الرمز هو آخر نتيجة، وعنده تاريخ تكرار
+    // مكافأة التكرار الفوري
     const isLastResult = results[results.length - 1]?.symbol_id === sym.id;
     if (isLastResult && repeatRate >= 10) {
-      totalScore += 15;
+      totalScore += 10;
     }
 
     if (doubleBonus) totalScore += 5;
 
-    // 👇 تخفيض خفيف للحوم فقط إذا ما عندها أي سبب للظهور
     if (sym.type === 'animal') {
-      if (relativeGap < 0.8 && streakValue < 1 && seqBonusForThisSymbol === 0 && repeatRate < 5) {
-        totalScore = totalScore * 0.7;
+      if (relativeGap < 1.0 && streakValue < 2 && seqBonusForThisSymbol === 0 && repeatRate < 5) {
+        totalScore = totalScore * 0.5;
       }
     }
 
@@ -701,7 +698,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 }
 
 // ==========================================
-// مكون التوقعات (Reversion V6)
+// مكون التوقعات (Reversion V9)
 // ==========================================
 function StatisticalPredictor({ 
   results, 
@@ -726,26 +723,9 @@ function StatisticalPredictor({
 
   const { deviations, windowSize, momentum } = analyzeEnhancedDeviation(results);
 
-    // 👇 V7: إجبار النظام على اختيار 3 خضار و 2 لحوم مع مراعاة الغياب الكبير
-  const veggieDeviations = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable');
-  const animalDeviations = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal');
-
-  // 1. نختار أعلى 3 خضار
-  const veggiePicks = veggieDeviations.slice(0, 3);
-
-  // 2. نختار اللحوم: إذا في لحمة غيابها > 2.0 (زي الديك)، ناخدها هي الأولى، وبعدها الأعلى نقاط
-  let animalPicks = [...animalDeviations];
-  const superGapAnimal = animalDeviations.find(d => d.relativeGap > 2.0);
-  
-  if (superGapAnimal) {
-    // إذا في لحمة غيابها كبير جداً، ناخدها هي أولاً، وبعدها نكمل بالباقي حسب النقاط
-    animalPicks = [superGapAnimal, ...animalDeviations.filter(d => d.symbol !== superGapAnimal.symbol)];
-  }
-  animalPicks = animalPicks.slice(0, 2);
-
-  // 3. ندمجهم ونرتبهم حسب النقاط للعرض
+  const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
+  const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
   const finalPicks = [...veggiePicks, ...animalPicks].sort((a, b) => b.totalScore - a.totalScore);
-
 
   const doubleBonusCount = finalPicks.filter(d => d.doubleBonus).length;
   const repeatCandidatesCount = finalPicks.filter(d => d.repeatBonus > 0).length;
@@ -758,7 +738,7 @@ function StatisticalPredictor({
     <div className="flex-1 flex flex-col justify-between gap-5">
       <div>
         <div className="flex items-center justify-between mb-4">
-          <span className="text-[10px] text-slate-500 font-mono uppercase">Statistical Reversion V6</span>
+          <span className="text-[10px] text-slate-500 font-mono uppercase">Statistical Reversion V9</span>
           <span className="text-[10px] font-mono text-cyan-400">Window: {windowSize}</span>
         </div>
 
@@ -878,7 +858,7 @@ function StatisticalPredictor({
 }
 
 // ==========================================
-// لوحة الانحراف (Reversion V6)
+// لوحة الانحراف (Reversion V9)
 // ==========================================
 function DeviationPanel({ results }: { results: ResultRow[] }) {
   if (results.length < 10) {
