@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { 
   RotateCcw, Trash2, Activity, Crown,
   Target, BarChart3, Upload,
-  ShieldAlert, Database, Cpu, Radio, Gauge, Scale, ArrowDownRight, TrendingUp
+  ShieldAlert, Database, Cpu, Radio, Gauge, Scale, ArrowDownRight, TrendingUp, Flame
 } from 'lucide-react';
 
 export type SymbolId = 
@@ -153,7 +153,7 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-sm font-bold text-white tracking-wide">الراهن الذكي</h1>
-              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Statistical Reversion V2</p>
+              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Statistical Reversion V3</p>
             </div>
           </div>
           
@@ -197,7 +197,7 @@ export default function HomePage() {
                     <Scale className="w-5 h-5 text-amber-400" />
                     <span className="text-sm font-semibold text-white tracking-wide">محرك التوازن الإحصائي</span>
                   </div>
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION V2</span>
+                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION V3</span>
                 </div>
                 <StatisticalPredictor results={results} />
               </div>
@@ -319,7 +319,7 @@ export default function HomePage() {
       <footer className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 border-t border-white/[0.04] mt-6">
         <div className="flex items-center justify-between text-[10px] text-slate-600 font-mono tracking-widest uppercase">
           <span>Smart Bettor Intelligence</span>
-          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V4.1 · Reversion V2</span>
+          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V4.2 · Reversion V3</span>
         </div>
       </footer>
     </main>
@@ -418,7 +418,7 @@ function GapDisplay({ results }: { results: ResultRow[] }) {
 }
 
 // ==========================================
-// المحرك الإحصائي (Reversion V2)
+// المحرك الإحصائي (Reversion V3)
 // ==========================================
 
 interface EnhancedDeviationData {
@@ -431,21 +431,37 @@ interface EnhancedDeviationData {
   avgGap: number;
   relativeGap: number;
   gapScore: number;
+  momentumBonus: number;
   totalScore: number;
   doubleBonus: boolean;
+}
+
+// حساب الزخم الحديث (Momentum)
+function getRecentMomentum(results: ResultRow[]): { meatMomentum: number; vegMomentum: number } {
+  const recent = results.slice(-10);
+  if (recent.length === 0) return { meatMomentum: 0, vegMomentum: 0 };
+  
+  const animals = recent.filter(r => SYMBOLS.find(s => s.id === r.symbol_id)?.type === 'animal').length;
+  const veggies = recent.filter(r => SYMBOLS.find(s => s.id === r.symbol_id)?.type === 'vegetable').length;
+  
+  const meatMomentum = (animals / recent.length) * 100; // نسبة اللحوم في آخر 10
+  const vegMomentum = (veggies / recent.length) * 100;   // نسبة الخضار في آخر 10
+  
+  return { meatMomentum, vegMomentum };
 }
 
 function analyzeEnhancedDeviation(results: ResultRow[]): {
   deviations: EnhancedDeviationData[];
   windowSize: number;
-  totalAnalyzed: number;
+  momentum: { meatMomentum: number; vegMomentum: number };
 } {
   if (results.length < 20) {
-    return { deviations: [], windowSize: 0, totalAnalyzed: 0 };
+    return { deviations: [], windowSize: 0, momentum: { meatMomentum: 0, vegMomentum: 0 } };
   }
 
   const windowSize = Math.min(100, results.length);
   const window = results.slice(-windowSize);
+  const momentum = getRecentMomentum(results);
 
   const counts: Record<string, number> = {};
   SYMBOLS.forEach(s => { counts[s.id] = 0; });
@@ -485,9 +501,19 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     const avgGap = avgGaps[sym.id];
     const relativeGap = avgGap > 0 ? currentGap / avgGap : 0;
     const gapScore = Math.min(100, relativeGap * 50);
+
+    // 👇 الزخم الجديد: نعطي دفعة للرموز اللي نوعها ظهر كتير مؤخراً
+    let momentumBonus = 0;
+    if (sym.type === 'animal' && momentum.meatMomentum > 30) {
+      momentumBonus = momentum.meatMomentum * 0.5; // لحد 50 نقطة
+    } else if (sym.type === 'vegetable' && momentum.vegMomentum > 70) {
+      momentumBonus = momentum.vegMomentum * 0.3; // لحد 30 نقطة (الخضار دايماً عالية)
+    }
+
     const doubleBonus = deviation < 0 && relativeGap > 1.2;
-    let totalScore = (deviationScore * 0.6) + (gapScore * 0.4);
-    if (doubleBonus) totalScore += 15;
+    let totalScore = (deviationScore * 0.5) + (gapScore * 0.3) + (momentumBonus * 0.2);
+    if (doubleBonus) totalScore += 10;
+
     return {
       symbol: sym.id,
       actualPct,
@@ -498,16 +524,17 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
       avgGap,
       relativeGap,
       gapScore,
+      momentumBonus,
       totalScore: Math.min(100, totalScore),
       doubleBonus,
     };
   }).sort((a, b) => b.totalScore - a.totalScore);
 
-  return { deviations, windowSize, totalAnalyzed: windowSize };
+  return { deviations, windowSize, momentum };
 }
 
 // ==========================================
-// مكون التوقعات (Reversion V2) - مع فلتر 3+2
+// مكون التوقعات (Reversion V3) - مع فلتر 3+2
 // ==========================================
 function StatisticalPredictor({ results }: { results: ResultRow[] }) {
   if (results.length < 20) {
@@ -520,14 +547,15 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
     );
   }
 
-  const { deviations, windowSize } = analyzeEnhancedDeviation(results);
+  const { deviations, windowSize, momentum } = analyzeEnhancedDeviation(results);
 
-  // 👇 الفلتر الجديد: 3 خضار + 2 لحوم
+  // فلتر 3 خضار + 2 لحوم
   const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
   const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
   const finalPicks = [...veggiePicks, ...animalPicks].sort((a, b) => b.totalScore - a.totalScore);
 
   const doubleBonusCount = finalPicks.filter(d => d.doubleBonus).length;
+  const isMeatHot = momentum.meatMomentum > 30;
 
   return (
     <div className="flex-1 flex flex-col justify-between gap-5">
@@ -535,6 +563,21 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
         <div className="flex items-center justify-between mb-4">
           <span className="text-[10px] text-slate-500 font-mono uppercase">Statistical Reversion</span>
           <span className="text-[10px] font-mono text-cyan-400">Window: {windowSize}</span>
+        </div>
+
+        {/* مؤشر الزخم */}
+        <div className={`mb-3 p-2 rounded-lg flex items-center justify-between ${
+          isMeatHot ? 'bg-rose-500/10 border border-rose-500/20' : 'bg-emerald-500/10 border border-emerald-500/20'
+        }`}>
+          <div className="flex items-center gap-2">
+            <Flame className={`w-3.5 h-3.5 ${isMeatHot ? 'text-rose-400' : 'text-emerald-400'}`} />
+            <span className={`text-[10px] ${isMeatHot ? 'text-rose-300' : 'text-emerald-300'}`}>
+              {isMeatHot ? 'اللحوم سخنة' : 'الخضار مسيطرة'}
+            </span>
+          </div>
+          <span className={`text-[10px] font-mono ${isMeatHot ? 'text-rose-400' : 'text-emerald-400'}`}>
+            {isMeatHot ? `${momentum.meatMomentum.toFixed(0)}%` : `${momentum.vegMomentum.toFixed(0)}%`}
+          </span>
         </div>
         
         {doubleBonusCount > 0 && (
@@ -551,13 +594,16 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
             const sym = SYMBOLS.find(s => s.id === p.symbol)!;
             return (
               <div key={p.symbol} className={`relative flex flex-col items-center justify-center p-3 rounded-xl border transition-all hover:-translate-y-1 ${
+                p.momentumBonus > 0 ? 'bg-rose-500/10 border-rose-500/40' :
                 p.doubleBonus ? 'bg-emerald-500/10 border-emerald-500/40' :
                 i === 0 ? 'bg-violet-500/10 border-violet-500/30' : 
                 'bg-white/[0.02] border-white/5'
               }`}>
-                {p.doubleBonus && (
-                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center text-[8px]">
-                    ⚡
+                {(p.momentumBonus > 0 || p.doubleBonus) && (
+                  <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] ${
+                    p.momentumBonus > 0 ? 'bg-rose-500' : 'bg-emerald-500'
+                  }`}>
+                    {p.momentumBonus > 0 ? '🔥' : '⚡'}
                   </div>
                 )}
                 <div className="text-2xl mb-1">{sym.emoji}</div>
@@ -581,7 +627,11 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
               <span className="w-5 text-center">{sym.emoji}</span>
               <span className="text-slate-400 w-12">{sym.name}</span>
               <div className="flex-1 h-1 bg-white/[0.03] rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${p.doubleBonus ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' : 'bg-gradient-to-r from-violet-500 to-cyan-400'}`} style={{ width: `${p.totalScore}%` }} />
+                <div className={`h-full rounded-full ${
+                  p.momentumBonus > 0 ? 'bg-gradient-to-r from-rose-500 to-orange-400' :
+                  p.doubleBonus ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' : 
+                  'bg-gradient-to-r from-violet-500 to-cyan-400'
+                }`} style={{ width: `${p.totalScore}%` }} />
               </div>
               <span className="text-slate-500 font-mono w-16 text-left">
                 {p.actualPct.toFixed(0)}% / {p.theoreticalPct.toFixed(0)}%
@@ -595,7 +645,7 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
 }
 
 // ==========================================
-// لوحة الانحراف (Reversion V2)
+// لوحة الانحراف (Reversion V3)
 // ==========================================
 function DeviationPanel({ results }: { results: ResultRow[] }) {
   if (results.length < 10) {
@@ -611,13 +661,15 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
         const isUnder = d.deviation < 0;
         return (
           <div key={d.symbol} className={`rounded-xl border bg-white/[0.02] p-4 ${
+            d.momentumBonus > 0 ? 'border-rose-500/30' :
             d.doubleBonus ? 'border-emerald-500/30' : 'border-white/[0.05]'
           }`}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="text-xl">{sym.emoji}</span>
                 <span className="text-xs text-slate-300">{sym.name}</span>
-                {d.doubleBonus && <span className="text-[10px]">⚡</span>}
+                {d.momentumBonus > 0 && <span className="text-[10px]">🔥</span>}
+                {d.doubleBonus && !d.momentumBonus && <span className="text-[10px]">⚡</span>}
               </div>
               <span className={`text-[10px] font-mono font-bold ${isUnder ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {d.deviation > 0 ? '+' : ''}{d.deviation.toFixed(1)}%
@@ -638,9 +690,9 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
                 <span className="text-slate-300">{d.currentGap} / {d.avgGap.toFixed(1)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">نسبي</span>
-                <span className={`${d.relativeGap > 1.2 ? 'text-emerald-400' : 'text-slate-300'}`}>
-                  {d.relativeGap.toFixed(2)}x
+                <span className="text-slate-500">زخم</span>
+                <span className={`${d.momentumBonus > 0 ? 'text-rose-400' : 'text-slate-500'}`}>
+                  {d.momentumBonus.toFixed(0)}
                 </span>
               </div>
               <div className="flex justify-between pt-1.5 border-t border-white/5">
@@ -650,8 +702,11 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
             </div>
 
             <div className="mt-2 h-1 bg-white/[0.03] rounded-full overflow-hidden">
-              <div className={`h-full rounded-full ${d.doubleBonus ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' : 'bg-gradient-to-r from-violet-500 to-cyan-400'}`}
-                style={{ width: `${d.totalScore}%` }} />
+              <div className={`h-full rounded-full ${
+                d.momentumBonus > 0 ? 'bg-gradient-to-r from-rose-500 to-orange-400' :
+                d.doubleBonus ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' : 
+                'bg-gradient-to-r from-violet-500 to-cyan-400'
+              }`} style={{ width: `${d.totalScore}%` }} />
             </div>
           </div>
         );
