@@ -433,6 +433,7 @@ interface EnhancedDeviationData {
   gapScore: number;
   momentumBonus: number;
   streakBonus: number;
+  sequenceBonus: number; // 👈 أضفنا هاد
   totalScore: number;
   doubleBonus: boolean;
 }
@@ -448,6 +449,47 @@ function getRecentMomentum(results: ResultRow[]): { meatMomentum: number; vegMom
   return { meatMomentum, vegMomentum };
 }
 
+// 👇 دالة التوقع التسلسلي (N-Gram) للحوم
+function getSequenceAnimalBonus(results: ResultRow[]): Record<string, number> {
+  const bonus: Record<string, number> = {};
+  SYMBOLS.forEach(s => { bonus[s.id] = 0; });
+
+  if (results.length < 10) return bonus;
+
+  const patternLength = 3;
+  const targetSeq = results.slice(-patternLength).map(r => r.symbol_id);
+  
+  const animalMatches: Record<string, number> = {};
+  let totalMatches = 0;
+
+  for (let i = 0; i <= results.length - patternLength - 1; i++) {
+    let isMatch = true;
+    for (let j = 0; j < patternLength; j++) {
+      if (results[i + j].symbol_id !== targetSeq[j]) {
+        isMatch = false;
+        break;
+      }
+    }
+    
+    if (isMatch) {
+      const nextSymbol = results[i + patternLength].symbol_id;
+      const symInfo = SYMBOLS.find(s => s.id === nextSymbol);
+      if (symInfo?.type === 'animal') {
+        animalMatches[nextSymbol] = (animalMatches[nextSymbol] || 0) + 1;
+        totalMatches++;
+      }
+    }
+  }
+
+  if (totalMatches >= 2) {
+    Object.entries(animalMatches).forEach(([symId, count]) => {
+      bonus[symId] = (count / totalMatches) * 30; // بونص لحد 30 نقطة
+    });
+  }
+
+  return bonus;
+}
+
 function analyzeEnhancedDeviation(results: ResultRow[]): {
   deviations: EnhancedDeviationData[];
   windowSize: number;
@@ -460,6 +502,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
   const windowSize = results.length;
   const window = results.slice(-windowSize);
   const momentum = getRecentMomentum(results);
+  const sequenceBonus = getSequenceAnimalBonus(results); // 👈 حساب بونص التسلسل
 
   const counts: Record<string, number> = {};
   SYMBOLS.forEach(s => { counts[s.id] = 0; });
@@ -488,10 +531,8 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     }
   });
 
-    // 👇 حساب التكرار في آخر 10 نتائج (بدل السلسلة المتصلة)
   const streaks: Record<string, number> = {};
   SYMBOLS.forEach(s => { streaks[s.id] = 0; });
-  
   const last10 = results.slice(-10);
   last10.forEach(r => {
     streaks[r.symbol_id] = (streaks[r.symbol_id] || 0) + 1;
@@ -509,7 +550,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     const relativeGap = avgGap > 0 ? currentGap / avgGap : 0;
     const gapScore = Math.min(100, relativeGap * 50);
 
-    // 👇 الزخم العكسي (Contrarian Momentum)
+    // الزخم العكسي
     let momentumBonus = 0;
     if (sym.type === 'vegetable' && momentum.meatMomentum > 30) {
       momentumBonus = (momentum.meatMomentum - 30) * 0.5; 
@@ -517,21 +558,23 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
       momentumBonus = (momentum.vegMomentum - 70) * 0.5;
     }
 
-        // 👇 مكافأة التكرار (بناءً على آخر 10 نتائج)
+    // مكافأة التكرار (آخر 10 نتائج)
     const streakCount = streaks[sym.id] || 0;
     let streakBonus = 0;
     if (streakCount === 1) streakBonus = 5;
     else if (streakCount === 2) streakBonus = 10;
     else if (streakCount >= 3) streakBonus = 15;
 
+    const seqBonusForThisSymbol = sequenceBonus[sym.id] || 0; // 👈 بونص التسلسل للرمز
+
     const doubleBonus = deviation < 0 && relativeGap > 1.2;
-    let totalScore = (deviationScore * 0.4) + (gapScore * 0.3) + (momentumBonus * 0.15) + (streakBonus * 0.15);
+    let totalScore = (deviationScore * 0.3) + (gapScore * 0.3) + (momentumBonus * 0.15) + (streakBonus * 0.15) + (seqBonusForThisSymbol * 0.1);
     if (doubleBonus) totalScore += 10;
 
-    // 👇 شرط خاص للحوم: ما نتوقعها إلا إذا كانت غايبة كتير أو ظهرت كتير مؤخراً
+    // شرط خاص للحوم
     if (sym.type === 'animal') {
-      if (relativeGap < 1.5 && streakCount < 2) {
-        totalScore = totalScore * 0.5; // تخفيض النقاط للنصف إذا ما كانت مستحقة
+      if (relativeGap < 1.5 && streakCount < 2 && seqBonusForThisSymbol === 0) {
+        totalScore = totalScore * 0.5;
       }
     }
 
@@ -547,6 +590,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
       gapScore,
       momentumBonus,
       streakBonus,
+      sequenceBonus: seqBonusForThisSymbol, // 👈 إضافة الحقل
       totalScore: Math.min(100, totalScore),
       doubleBonus,
     };
@@ -690,6 +734,7 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
                 <span className="text-xs text-slate-300">{sym.name}</span>
                 {d.momentumBonus > 0 && <span className="text-[10px]">🔥</span>}
                 {d.doubleBonus && !d.momentumBonus && <span className="text-[10px]">⚡</span>}
+                {d.sequenceBonus > 0 && <span className="text-[10px]">🎯</span>} {/* إشارة التسلسل */}
               </div>
               <span className={`text-[10px] font-mono font-bold ${isUnder ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {d.deviation > 0 ? '+' : ''}{d.deviation.toFixed(1)}%
@@ -719,6 +764,12 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
                 <span className="text-slate-500">تكرار</span>
                 <span className={`${d.streakBonus > 0 ? 'text-cyan-400' : 'text-slate-500'}`}>
                   {d.streakBonus.toFixed(0)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">تسلسل</span>
+                <span className={`${d.sequenceBonus > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                  {d.sequenceBonus.toFixed(0)}
                 </span>
               </div>
               <div className="flex justify-between pt-1.5 border-t border-white/5">
