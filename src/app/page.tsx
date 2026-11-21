@@ -502,13 +502,22 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     const relativeGap = avgGap > 0 ? currentGap / avgGap : 0;
     const gapScore = Math.min(100, relativeGap * 50);
 
-    // 👇 الزخم الجديد: نعطي دفعة للرموز اللي نوعها ظهر كتير مؤخراً
-    let momentumBonus = 0;
-    if (sym.type === 'animal' && momentum.meatMomentum > 30) {
-      momentumBonus = momentum.meatMomentum * 0.5; // لحد 50 نقطة
-    } else if (sym.type === 'vegetable' && momentum.vegMomentum > 70) {
-      momentumBonus = momentum.vegMomentum * 0.3; // لحد 30 نقطة (الخضار دايماً عالية)
-    }
+    // 👇 الزخم العكسي: نعطي دفعة للنوع اللي كان غايب مؤخراً
+let momentumBonus = 0;
+if (sym.type === 'animal' && momentum.meatMomentum > 30) {
+  // اللحوم سخنة؟ نعطي دفعة للخضار (عكس الاتجاه)
+  momentumBonus = 0;
+} else if (sym.type === 'vegetable' && momentum.vegMomentum > 70) {
+  // الخضار مسيطرة؟ نعطي دفعة للحوم (عكس الاتجاه)
+  momentumBonus = 0;
+}
+
+// الدفعة الحقيقية: عكس الزخم
+if (sym.type === 'vegetable' && momentum.meatMomentum > 30) {
+  momentumBonus = (momentum.meatMomentum - 30) * 0.5; // لحد 35 نقطة للخضار
+} else if (sym.type === 'animal' && momentum.vegMomentum > 70) {
+  momentumBonus = (momentum.vegMomentum - 70) * 0.5; // لحد 15 نقطة للحوم
+}
 
     const doubleBonus = deviation < 0 && relativeGap > 1.2;
     let totalScore = (deviationScore * 0.5) + (gapScore * 0.3) + (momentumBonus * 0.2);
