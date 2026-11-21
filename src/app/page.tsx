@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { 
   RotateCcw, Trash2, Activity, Crown,
   Target, BarChart3, Upload,
-  ShieldAlert, Puzzle, Zap, Database, Cpu, Radio, Gauge
+  ShieldAlert, Database, Cpu, Radio, Gauge, Scale, ArrowDownRight
 } from 'lucide-react';
 
 export type SymbolId = 
@@ -30,6 +30,21 @@ export const SYMBOLS: SymbolInfo[] = [
   { id: 'shrimp',  name: 'جمبري',  emoji: '🦐', color: '#EC4899', type: 'animal', multiplier: 10 },
   { id: 'fish',    name: 'سمكة',   emoji: '🐟', color: '#3B82F6', type: 'animal', multiplier: 25 },
 ];
+
+// حساب الوزن النظري (1/المضاعف) لكل رمز
+const THEORETICAL_WEIGHTS: Record<SymbolId, number> = (() => {
+  const raw: Record<string, number> = {};
+  let sum = 0;
+  SYMBOLS.forEach(s => {
+    raw[s.id] = 1 / s.multiplier;
+    sum += raw[s.id];
+  });
+  const normalized: Record<string, number> = {};
+  SYMBOLS.forEach(s => {
+    normalized[s.id] = (raw[s.id] / sum) * 100; // النسبة المئوية المتوقعة
+  });
+  return normalized as Record<SymbolId, number>;
+})();
 
 interface ResultRow {
   id: number;
@@ -139,12 +154,12 @@ export default function HomePage() {
         <div className="max-w-[1600px] mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-b from-white/[0.1] to-transparent border border-white/10 shadow-[0_0_20px_-5px_rgba(139,92,246,0.5)]">
-              <Target className="w-5 h-5 text-violet-400" />
+              <Scale className="w-5 h-5 text-violet-400" />
               <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-[#050508]"></div>
             </div>
             <div>
               <h1 className="text-sm font-bold text-white tracking-wide">الراهن الذكي</h1>
-              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Core Intelligence</p>
+              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Statistical Reversion</p>
             </div>
           </div>
           
@@ -178,6 +193,7 @@ export default function HomePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           
+          {/* لوحة التوقعات (التوازن الإحصائي) */}
           <div className="lg:col-span-5 row-span-2 relative group overflow-hidden rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(139,92,246,0.15),transparent_70%)]"></div>
             <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] overflow-hidden flex flex-col border border-white/[0.04]">
@@ -185,23 +201,24 @@ export default function HomePage() {
               <div className="p-6 flex-1 flex flex-col">
                 <div className="flex items-center justify-between mb-8">
                   <div className="flex items-center gap-3">
-                    <Puzzle className="w-5 h-5 text-amber-400" />
-                    <span className="text-sm font-semibold text-white tracking-wide">محرك الأنماط التسلسلي</span>
+                    <Scale className="w-5 h-5 text-amber-400" />
+                    <span className="text-sm font-semibold text-white tracking-wide">محرك التوازن الإحصائي</span>
                   </div>
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">N-GRAM</span>
+                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION</span>
                 </div>
-                <SequencePredictor results={results} />
+                <StatisticalPredictor results={results} />
               </div>
             </div>
           </div>
 
+          {/* وحدة الإدخال */}
           <div className="lg:col-span-7 relative group rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(6,182,212,0.05),transparent_50%)]"></div>
             <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] p-6 border border-white/[0.04]">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="text-sm font-semibold text-white tracking-wide flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-cyan-400" /> وحدة الإدخال السريع
+                    <Activity className="w-4 h-4 text-cyan-400" /> وحدة الإدخال السريع
                   </h2>
                   <p className="text-[10px] text-slate-500 mt-1">سجل النتيجة الجديدة لتحديث التحليل الفوري</p>
                 </div>
@@ -239,6 +256,7 @@ export default function HomePage() {
             </div>
           </div>
 
+          {/* تدفق الأحداث */}
           <div className="lg:col-span-7 relative group rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] p-6 border border-white/[0.04]">
                <div className="flex items-center justify-between mb-4">
@@ -251,6 +269,7 @@ export default function HomePage() {
             </div>
           </div>
 
+          {/* إحصائيات سريعة */}
           <div className="lg:col-span-3 grid grid-cols-1 gap-5">
             <div className="relative rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
               <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] p-5 border border-white/[0.04] flex flex-col justify-center">
@@ -268,6 +287,7 @@ export default function HomePage() {
             </div>
           </div>
 
+          {/* التكرار والغياب */}
           <div className="lg:col-span-5 relative rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="relative h-full rounded-[1.85rem] bg-[#0B0C10] p-6 border border-white/[0.04]">
               <div className="flex items-center justify-between mb-6">
@@ -292,15 +312,16 @@ export default function HomePage() {
             </div>
           </div>
 
+          {/* لوحة تحليل الانحراف */}
           <div className="lg:col-span-12 relative rounded-[2rem] border border-white/[0.06] bg-[#08080C] p-1">
             <div className="relative rounded-[1.85rem] bg-[#0B0C10] p-6 border border-white/[0.04]">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Gauge className="w-4 h-4 text-violet-400" /> جودة الأنماط والاختبار التاريخي
+                  <Gauge className="w-4 h-4 text-violet-400" /> لوحة الانحراف الإحصائي (Deviation Panel)
                 </h2>
-                <span className="text-[9px] font-mono text-slate-500">WALK-FORWARD · NO LOOKAHEAD</span>
+                <span className="text-[9px] font-mono text-slate-500">THEORY vs ACTUAL</span>
               </div>
-              <PatternQualityPanel results={results} />
+              <DeviationPanel results={results} />
             </div>
           </div>
 
@@ -310,13 +331,16 @@ export default function HomePage() {
       <footer className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 border-t border-white/[0.04] mt-6">
         <div className="flex items-center justify-between text-[10px] text-slate-600 font-mono tracking-widest uppercase">
           <span>Smart Bettor Intelligence</span>
-          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V3.0</span>
+          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V4.0 · Reversion</span>
         </div>
       </footer>
     </main>
   );
 }
 
+// ==========================================
+// Components
+// ==========================================
 function LastResults({ results }: { results: ResultRow[] }) {
   const last = results.slice(-20).reverse();
   if (last.length === 0) return <div className="py-8 text-center text-xs text-slate-600 font-mono">AWAITING DATA...</div>;
@@ -405,203 +429,248 @@ function GapDisplay({ results }: { results: ResultRow[] }) {
   );
 }
 
-interface NGramResult {
-  nextSymbol: SymbolId;
-  occurrences: number;
-  probability: number;
-  patternLength: number;
-  weightedScore: number;
-}
-interface PatternAnalysis {
-  predictions: NGramResult[];
-  usedPatternLength: number;
-  matchCount: number;
-  quality: number;
-  support: number;
-  targetSeq: SymbolId[];
+// ==========================================
+// المحرك الإحصائي (Statistical Reversion)
+// ==========================================
+
+interface DeviationData {
+  symbol: SymbolId;
+  actualCount: number;
+  actualPct: number;
+  theoreticalPct: number;
+  deviation: number;        // الانحراف (فعلي - نظري)
+  deviationScore: number;   // نقاط الانحراف (0-100)
+  gap: number;
+  gapScore: number;         // نقاط الغياب (0-100)
+  totalScore: number;       // النقاط النهائية
 }
 
-function analyzePattern(history: ResultRow[], minMatches = 4): PatternAnalysis {
-  const lengths = [4, 3, 2];
-  const empty: PatternAnalysis = { predictions: [], usedPatternLength: 0, matchCount: 0, quality: 0, support: 0, targetSeq: [] };
-  for (const len of lengths) {
-    if (history.length < len + 1) continue;
-    const target = history.slice(-len).map(r => r.symbol_id);
-    const counts: Record<string, number> = {};
-    let total = 0;
-    for (let i = 0; i <= history.length - len - 1; i++) {
-      let match = true;
-      for (let j = 0; j < len; j++) {
-        if (history[i + j].symbol_id !== target[j]) { match = false; break; }
-      }
-      if (!match) continue;
-      const next = history[i + len].symbol_id;
-      counts[next] = (counts[next] || 0) + 1;
-      total++;
+function analyzeDeviation(results: ResultRow[]): {
+  deviations: DeviationData[];
+  totalCount: number;
+  entropy: number;         // مقياس العشوائية (0-100)
+} {
+  const total = results.length;
+  if (total === 0) return { deviations: [], totalCount: 0, entropy: 0 };
+
+  // 1. حساب التكرار الفعلي
+  const counts: Record<string, number> = {};
+  SYMBOLS.forEach(s => { counts[s.id] = 0; });
+  results.forEach(r => { counts[r.symbol_id]++; });
+
+  // 2. حساب الغياب الحالي
+  const gaps: Record<string, number> = {};
+  SYMBOLS.forEach(s => {
+    let gap = 0;
+    for (let i = results.length - 1; i >= 0; i--) {
+      if (results[i].symbol_id === s.id) break;
+      gap++;
     }
+    gaps[s.id] = gap;
+  });
 
-    // 👇 التعديل الأول: تمييز الحيوانات عن الخضار
-    const lastSymbolInPattern = target[target.length - 1];
-    const lastSymbolInfo = SYMBOLS.find(s => s.id === lastSymbolInPattern);
-    const isAnimalPattern = lastSymbolInfo?.type === 'animal';
-    const requiredMatches = isAnimalPattern ? 2 : minMatches;
-    if (total < requiredMatches) continue;
+  // 3. حساب أقصى غياب ممكن (لتطبيع النقاط)
+  const maxGap = Math.max(...Object.values(gaps), 1);
 
-    const predictions: NGramResult[] = Object.entries(counts).map(([symbol, count]) => ({
-      nextSymbol: symbol as SymbolId,
-      occurrences: count,
-      probability: count / total * 100,
-      patternLength: len,
-      weightedScore: count / total * 100,
-    })).sort((a, b) => b.probability - a.probability || b.occurrences - a.occurrences);
-    const topShare = predictions[0]?.probability ?? 0;
+  // 4. حساب الانحرافات
+  const deviations: DeviationData[] = SYMBOLS.map(sym => {
+    const actualCount = counts[sym.id];
+    const actualPct = (actualCount / total) * 100;
+    const theoreticalPct = THEORETICAL_WEIGHTS[sym.id];
     
-    // تحسين حساب الجودة (أوزان أكثر واقعية)
-    const supportScore = Math.min(total / 20, 1) * 40;
-    const specificityScore = (len / 4) * 30;
-    const concentrationScore = topShare * 0.3;
-    const quality = Math.round(Math.min(100, supportScore + specificityScore + concentrationScore));
+    // الانحراف (سالب يعني ظهر أقل من المتوقع)
+    const deviation = actualPct - theoreticalPct;
     
-    return { predictions, usedPatternLength: len, matchCount: total, quality, support: total, targetSeq: target };
-  }
-  return empty;
+    // نقاط الانحراف: كل ما كان الانحراف سالب أكبر، النقاط أعلى
+    // نطبع القيمة عشان تكون بين 0 و 100
+    const normalizedDeviation = -deviation; // نقلب الإشارة عشان السالب يصير موجب
+    const deviationScore = Math.max(0, Math.min(100, normalizedDeviation * 2 + 50));
+    
+    // نقاط الغياب
+    const gap = gaps[sym.id];
+    const gapScore = (gap / maxGap) * 100;
+
+    // النقاط النهائية: 60% انحراف + 40% غياب
+    const totalScore = (deviationScore * 0.6) + (gapScore * 0.4);
+
+    return {
+      symbol: sym.id,
+      actualCount,
+      actualPct,
+      theoreticalPct,
+      deviation,
+      deviationScore,
+      gap,
+      gapScore,
+      totalScore,
+    };
+  }).sort((a, b) => b.totalScore - a.totalScore);
+
+  // 5. حساب الـ Entropy (مقياس العشوائية)
+  let entropy = 0;
+  SYMBOLS.forEach(sym => {
+    const p = counts[sym.id] / total;
+    if (p > 0) entropy -= p * Math.log2(p);
+  });
+  const maxEntropy = Math.log2(8); // 3 (لأنه 8 رموز)
+  const normalizedEntropy = (entropy / maxEntropy) * 100;
+
+  return {
+    deviations,
+    totalCount: total,
+    entropy: normalizedEntropy,
+  };
 }
 
-function getNGramPredictions(results: ResultRow[]) {
-  return analyzePattern(results, 4);
-}
-
-interface BacktestMetrics {
-  trials: number;
-  top1Hits: number;
-  top3Hits: number;
-  top1Rate: number;
-  top3Rate: number;
-}
-function runWalkForwardBacktest(results: ResultRow[], minHistory = 8): BacktestMetrics {
-  let trials = 0, top1Hits = 0, top3Hits = 0;
-  for (let i = minHistory; i < results.length; i++) {
-    const analysis = analyzePattern(results.slice(0, i), 4);
-    if (!analysis.predictions.length) continue;
-    trials++;
-    const actual = results[i].symbol_id;
-    if (analysis.predictions[0]?.nextSymbol === actual) top1Hits++;
-    if (analysis.predictions.slice(0, 3).some(p => p.nextSymbol === actual)) top3Hits++;
-  }
-  return { trials, top1Hits, top3Hits, top1Rate: trials ? top1Hits / trials * 100 : 0, top3Rate: trials ? top3Hits / trials * 100 : 0 };
-}
-
-function SequencePredictor({ results }: { results: ResultRow[] }) {
-  if (results.length < 5) {
+// ==========================================
+// مكون التوقعات الإحصائية
+// ==========================================
+function StatisticalPredictor({ results }: { results: ResultRow[] }) {
+  if (results.length < 20) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
         <ShieldAlert className="w-8 h-8 text-amber-500/50 mb-3" />
         <p className="text-sm text-slate-400 font-medium">بحاجة إلى سجل أكبر</p>
-        <p className="text-[10px] text-slate-600 mt-1 font-mono">MINIMUM 5 RESULTS</p>
-      </div>
-    );
-  }
-  const analysis = getNGramPredictions(results);
-  const lastPattern = results.slice(-Math.max(analysis.usedPatternLength, 2)).map(r => SYMBOLS.find(s => s.id === r.symbol_id));
-  if (!analysis.predictions.length) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center text-center p-6 space-y-3">
-        <div className="flex gap-1">{results.slice(-5).map((r, i) => <span key={i} className="text-xl opacity-60">{SYMBOLS.find(s => s.id === r.symbol_id)?.emoji}</span>)}</div>
-        <p className="text-xs text-slate-500 font-mono">لا يوجد نمط تاريخي مدعوم بمطابقتين على الأقل</p>
+        <p className="text-[10px] text-slate-600 mt-1 font-mono">MINIMUM 20 RESULTS</p>
       </div>
     );
   }
 
-  // 👇 التعديل الثاني: فلتر 3 خضار + 2 حيوانات
-  let veggiePicks = analysis.predictions.filter(p => SYMBOLS.find(s => s.id === p.nextSymbol)?.type === 'vegetable');
-  let animalPicks = analysis.predictions.filter(p => SYMBOLS.find(s => s.id === p.nextSymbol)?.type === 'animal');
+  const { deviations, entropy } = analyzeDeviation(results);
 
-  if (animalPicks.length < 2) {
-    const missing = 2 - animalPicks.length;
-    const usedIds = new Set([...veggiePicks.slice(0,3), ...animalPicks].map(p => p.nextSymbol));
-    const extras = analysis.predictions.filter(p => !usedIds.has(p.nextSymbol)).slice(0, missing);
-    animalPicks = [...animalPicks, ...extras];
-  }
+  // نختار 3 خضار + 2 حيوانات
+  const veggiePreds = deviations.filter(d => {
+    const sym = SYMBOLS.find(s => s.id === d.symbol);
+    return sym?.type === 'vegetable';
+  }).slice(0, 3);
 
-  veggiePicks = veggiePicks.slice(0, 3);
-  animalPicks = animalPicks.slice(0, 2);
-  const picks = [...veggiePicks, ...animalPicks].sort((a, b) => b.probability - a.probability);
+  const animalPreds = deviations.filter(d => {
+    const sym = SYMBOLS.find(s => s.id === d.symbol);
+    return sym?.type === 'animal';
+  }).slice(0, 2);
+
+  const finalPicks = [...veggiePreds, ...animalPreds].sort((a, b) => b.totalScore - a.totalScore);
 
   return (
     <div className="flex-1 flex flex-col justify-between gap-5">
       <div>
-        <div className="flex items-center justify-between mb-5 gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-500 font-mono uppercase">Pattern</span>
-            <div className="flex gap-1 bg-white/[0.03] px-2 py-1 rounded-md border border-white/5">{lastPattern.map((sym, i) => <span key={i} className="text-xs">{sym?.emoji}</span>)}</div>
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-[10px] text-slate-500 font-mono uppercase">Statistical Deviation</span>
+          <span className="text-[10px] font-mono text-cyan-400">Entropy: {entropy.toFixed(0)}%</span>
+        </div>
+        
+        {/* شريط الـ Entropy */}
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex-1 h-2 rounded-full bg-white/[0.04] overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-violet-500 to-cyan-400" style={{ width: `${entropy}%` }} />
           </div>
-          <span className="text-[10px] font-mono text-cyan-400">{analysis.matchCount} historical matches</span>
+          <span className="text-xs font-mono text-violet-300">{entropy > 80 ? 'عشوائي' : entropy > 60 ? 'متوازن' : 'منحاز'}</span>
         </div>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 h-2 rounded-full bg-white/[0.04] overflow-hidden"><div className="h-full bg-gradient-to-r from-violet-500 to-cyan-400" style={{ width: `${analysis.quality}%` }} /></div>
-          <span className="text-xs font-mono text-violet-300">Quality {analysis.quality}/100</span>
-        </div>
+
+        {/* التوقعات */}
         <div className="grid grid-cols-5 gap-2">
-          {picks.map((p, i) => {
-            const sym = SYMBOLS.find(s => s.id === p.nextSymbol)!;
-            return <div key={p.nextSymbol} className={`relative flex flex-col items-center justify-center p-3 rounded-xl border transition-all hover:-translate-y-1 ${i === 0 ? 'bg-violet-500/10 border-violet-500/30' : 'bg-white/[0.02] border-white/5'}`}>
-              <div className="text-2xl mb-1">{sym.emoji}</div>
-              <div className="text-sm font-bold font-mono text-white">{p.probability.toFixed(0)}%</div>
-              <div className="text-[9px] text-slate-500">{p.occurrences} match{p.occurrences !== 1 ? 'es' : ''}</div>
-            </div>;
+          {finalPicks.map((p, i) => {
+            const sym = SYMBOLS.find(s => s.id === p.symbol)!;
+            return (
+              <div key={p.symbol} className={`relative flex flex-col items-center justify-center p-3 rounded-xl border transition-all hover:-translate-y-1 ${
+                i === 0 ? 'bg-violet-500/10 border-violet-500/30' : 'bg-white/[0.02] border-white/5'
+              }`}>
+                <div className="text-2xl mb-1">{sym.emoji}</div>
+                <div className="text-sm font-bold font-mono text-white">{p.totalScore.toFixed(0)}</div>
+                <div className="text-[9px] text-slate-500">
+                  <ArrowDownRight className={`w-3 h-3 inline ${p.deviation < 0 ? 'text-emerald-400' : 'text-rose-400'}`} />
+                  {p.deviation.toFixed(1)}%
+                </div>
+              </div>
+            );
           })}
         </div>
       </div>
+
+      {/* التفاصيل */}
       <div className="space-y-2">
         <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-        {picks.map(p => {
-          const sym = SYMBOLS.find(s => s.id === p.nextSymbol)!;
-          return <div key={p.nextSymbol} className="flex items-center gap-3 text-[10px]">
-            <span className="w-5 text-center">{sym.emoji}</span><span className="text-slate-400 w-12">{sym.name}</span>
-            <div className="flex-1 h-1 bg-white/[0.03] rounded-full overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400" style={{ width: `${p.probability}%` }} /></div>
-            <span className="text-slate-500 font-mono w-12 text-left">{p.occurrences}/{analysis.matchCount}</span>
-          </div>;
+        {finalPicks.map(p => {
+          const sym = SYMBOLS.find(s => s.id === p.symbol)!;
+          return (
+            <div key={p.symbol} className="flex items-center gap-3 text-[10px]">
+              <span className="w-5 text-center">{sym.emoji}</span>
+              <span className="text-slate-400 w-12">{sym.name}</span>
+              <div className="flex-1 h-1 bg-white/[0.03] rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400" style={{ width: `${p.totalScore}%` }} />
+              </div>
+              <span className="text-slate-500 font-mono w-16 text-left">
+                {p.actualPct.toFixed(0)}% / {p.theoreticalPct.toFixed(0)}%
+              </span>
+            </div>
+          );
         })}
       </div>
     </div>
   );
 }
 
-function PatternQualityPanel({ results }: { results: ResultRow[] }) {
-  const analysis = analyzePattern(results, 3);
-  const backtest = runWalkForwardBacktest(results);
-  const best = analysis.predictions[0];
-  const bestSymbol = best ? SYMBOLS.find(s => s.id === best.nextSymbol) : null;
+// ==========================================
+// لوحة الانحراف الإحصائي
+// ==========================================
+function DeviationPanel({ results }: { results: ResultRow[] }) {
+  if (results.length < 10) {
+    return <p className="text-xs text-slate-600 text-center py-6">بيانات غير كافية للتحليل الإحصائي</p>;
+  }
+
+  const { deviations } = analyzeDeviation(results);
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-      <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-4">
-        <p className="text-[10px] text-slate-500 mb-2">النمط الحالي</p>
-        <div className="flex items-center gap-1 text-xl">{analysis.targetSeq.length ? analysis.targetSeq.map((id, i) => <span key={i}>{SYMBOLS.find(s => s.id === id)?.emoji}</span>) : <span className="text-slate-600">—</span>}</div>
-        <p className="text-xs text-slate-400 mt-2">طول النمط: {analysis.usedPatternLength || '—'}</p>
-      </div>
-      <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-4">
-        <p className="text-[10px] text-slate-500 mb-2">الدعم التاريخي</p>
-        <p className="text-2xl font-bold text-white font-mono">{analysis.matchCount}</p>
-        <p className="text-xs text-slate-400 mt-2">عدد الحالات المطابقة</p>
-      </div>
-      <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-4">
-        <p className="text-[10px] text-slate-500 mb-2">أعلى نتيجة تاريخية</p>
-        <p className="text-2xl font-bold text-white">{bestSymbol?.emoji ?? '—'} <span className="text-sm font-mono">{best ? best.probability.toFixed(1) + '%' : ''}</span></p>
-        <p className="text-xs text-slate-400 mt-2">تكرار الرمز التالي بعد النمط</p>
-      </div>
-      <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-4">
-        <p className="text-[10px] text-slate-500 mb-2">اختبار تاريخي Walk-forward</p>
-        <p className="text-2xl font-bold text-white font-mono">{backtest.top1Rate.toFixed(1)}%</p>
-        <p className="text-xs text-slate-400 mt-2">Top-1 من {backtest.trials} تجربة · Top-3 {backtest.top3Rate.toFixed(1)}%</p>
-      </div>
-      <div className="md:col-span-4 rounded-lg border border-amber-500/10 bg-amber-500/[0.04] p-3 text-xs text-amber-200/70 flex items-start gap-2">
-        <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
-        المؤشرات مبنية على تكرارات تاريخية وليست احتمالات مضمونة للمستقبل. الاختبار التاريخي يقيّم الأداء السابق فقط ولا يثبت أن النتائج القادمة قابلة للتوقع.
-      </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+      {deviations.map(d => {
+        const sym = SYMBOLS.find(s => s.id === d.symbol)!;
+        const isUnder = d.deviation < 0;
+        return (
+          <div key={d.symbol} className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{sym.emoji}</span>
+                <span className="text-xs text-slate-300">{sym.name}</span>
+              </div>
+              <span className={`text-[10px] font-mono font-bold ${isUnder ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {d.deviation > 0 ? '+' : ''}{d.deviation.toFixed(1)}%
+              </span>
+            </div>
+            
+            <div className="space-y-1.5 text-[10px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">فعلي</span>
+                <span className="text-slate-300">{d.actualPct.toFixed(1)}% ({d.actualCount})</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">نظري</span>
+                <span className="text-slate-300">{d.theoreticalPct.toFixed(1)}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">غياب</span>
+                <span className="text-slate-300">{d.gap}</span>
+              </div>
+              <div className="flex justify-between pt-1.5 border-t border-white/5">
+                <span className="text-slate-500">النقاط</span>
+                <span className="text-violet-400 font-bold">{d.totalScore.toFixed(0)}</span>
+              </div>
+            </div>
+
+            {/* شريط التقدم */}
+            <div className="mt-2 h-1 bg-white/[0.03] rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400" 
+                style={{ width: `${d.totalScore}%` }} />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
+// ==========================================
+// CSV
+// ==========================================
 function parseCSV(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
