@@ -432,6 +432,7 @@ interface EnhancedDeviationData {
   relativeGap: number;
   gapScore: number;
   momentumBonus: number;
+  streakBonus: number;
   totalScore: number;
   doubleBonus: boolean;
 }
@@ -440,13 +441,10 @@ interface EnhancedDeviationData {
 function getRecentMomentum(results: ResultRow[]): { meatMomentum: number; vegMomentum: number } {
   const recent = results.slice(-10);
   if (recent.length === 0) return { meatMomentum: 0, vegMomentum: 0 };
-  
   const animals = recent.filter(r => SYMBOLS.find(s => s.id === r.symbol_id)?.type === 'animal').length;
   const veggies = recent.filter(r => SYMBOLS.find(s => s.id === r.symbol_id)?.type === 'vegetable').length;
-  
-  const meatMomentum = (animals / recent.length) * 100; // نسبة اللحوم في آخر 10
-  const vegMomentum = (veggies / recent.length) * 100;   // نسبة الخضار في آخر 10
-  
+  const meatMomentum = (animals / recent.length) * 100;
+  const vegMomentum = (veggies / recent.length) * 100;
   return { meatMomentum, vegMomentum };
 }
 
@@ -457,9 +455,9 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 } {
   if (results.length < 5) {
     return { deviations: [], windowSize: 0, momentum: { meatMomentum: 0, vegMomentum: 0 } };
-}
+  }
 
-  const windowSize = results.length; // استخدم كل النتائج المتاحة
+  const windowSize = results.length;
   const window = results.slice(-windowSize);
   const momentum = getRecentMomentum(results);
 
@@ -490,6 +488,27 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     }
   });
 
+  // 👇 حساب سلسلة التكرار (Streak) لكل رمز
+  const streaks: Record<string, number> = {};
+  SYMBOLS.forEach(s => { streaks[s.id] = 0; });
+  let currentStreakSymbol: string | null = null;
+  let currentStreakCount = 0;
+  for (let i = results.length - 1; i >= 0; i--) {
+    const sym = results[i].symbol_id;
+    if (currentStreakSymbol === null) {
+      currentStreakSymbol = sym;
+      currentStreakCount = 1;
+    } else if (currentStreakSymbol === sym) {
+      currentStreakCount++;
+    } else {
+      streaks[currentStreakSymbol] = currentStreakCount;
+      break;
+    }
+  }
+  if (currentStreakSymbol !== null) {
+    streaks[currentStreakSymbol] = currentStreakCount;
+  }
+
   const deviations: EnhancedDeviationData[] = SYMBOLS.map(sym => {
     const actualCount = counts[sym.id];
     const actualPct = (actualCount / windowSize) * 100;
@@ -502,25 +521,23 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     const relativeGap = avgGap > 0 ? currentGap / avgGap : 0;
     const gapScore = Math.min(100, relativeGap * 50);
 
-    // 👇 الزخم العكسي: نعطي دفعة للنوع اللي كان غايب مؤخراً
-let momentumBonus = 0;
-if (sym.type === 'animal' && momentum.meatMomentum > 30) {
-  // اللحوم سخنة؟ نعطي دفعة للخضار (عكس الاتجاه)
-  momentumBonus = 0;
-} else if (sym.type === 'vegetable' && momentum.vegMomentum > 70) {
-  // الخضار مسيطرة؟ نعطي دفعة للحوم (عكس الاتجاه)
-  momentumBonus = 0;
-}
+    // 👇 الزخم العكسي (Contrarian Momentum)
+    let momentumBonus = 0;
+    if (sym.type === 'vegetable' && momentum.meatMomentum > 30) {
+      momentumBonus = (momentum.meatMomentum - 30) * 0.5; 
+    } else if (sym.type === 'animal' && momentum.vegMomentum > 70) {
+      momentumBonus = (momentum.vegMomentum - 70) * 0.5;
+    }
 
-// الدفعة الحقيقية: عكس الزخم
-if (sym.type === 'vegetable' && momentum.meatMomentum > 30) {
-  momentumBonus = (momentum.meatMomentum - 30) * 0.5; // لحد 35 نقطة للخضار
-} else if (sym.type === 'animal' && momentum.vegMomentum > 70) {
-  momentumBonus = (momentum.vegMomentum - 70) * 0.5; // لحد 15 نقطة للحوم
-}
+    // 👇 مكافأة سلسلة التكرار (Streak Bonus)
+    const streak = streaks[sym.id] || 0;
+    let streakBonus = 0;
+    if (streak === 1) streakBonus = 15;
+    else if (streak === 2) streakBonus = 10;
+    else if (streak === 3) streakBonus = 5;
 
     const doubleBonus = deviation < 0 && relativeGap > 1.2;
-    let totalScore = (deviationScore * 0.5) + (gapScore * 0.3) + (momentumBonus * 0.2);
+    let totalScore = (deviationScore * 0.4) + (gapScore * 0.3) + (momentumBonus * 0.15) + (streakBonus * 0.15);
     if (doubleBonus) totalScore += 10;
 
     return {
@@ -534,6 +551,7 @@ if (sym.type === 'vegetable' && momentum.meatMomentum > 30) {
       relativeGap,
       gapScore,
       momentumBonus,
+      streakBonus,
       totalScore: Math.min(100, totalScore),
       doubleBonus,
     };
@@ -554,11 +572,10 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
         <p className="text-[10px] text-slate-600 mt-1 font-mono">MINIMUM 5 RESULTS</p>
       </div>
     );
-}
+  }
 
   const { deviations, windowSize, momentum } = analyzeEnhancedDeviation(results);
 
-  // فلتر 3 خضار + 2 لحوم
   const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
   const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
   const finalPicks = [...veggiePicks, ...animalPicks].sort((a, b) => b.totalScore - a.totalScore);
@@ -574,7 +591,6 @@ function StatisticalPredictor({ results }: { results: ResultRow[] }) {
           <span className="text-[10px] font-mono text-cyan-400">Window: {windowSize}</span>
         </div>
 
-        {/* مؤشر الزخم */}
         <div className={`mb-3 p-2 rounded-lg flex items-center justify-between ${
           isMeatHot ? 'bg-rose-500/10 border border-rose-500/20' : 'bg-emerald-500/10 border border-emerald-500/20'
         }`}>
@@ -702,6 +718,12 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
                 <span className="text-slate-500">زخم</span>
                 <span className={`${d.momentumBonus > 0 ? 'text-rose-400' : 'text-slate-500'}`}>
                   {d.momentumBonus.toFixed(0)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">تكرار</span>
+                <span className={`${d.streakBonus > 0 ? 'text-cyan-400' : 'text-slate-500'}`}>
+                  {d.streakBonus.toFixed(0)}
                 </span>
               </div>
               <div className="flex justify-between pt-1.5 border-t border-white/5">
