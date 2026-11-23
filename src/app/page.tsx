@@ -101,7 +101,18 @@ export default function HomePage() {
 
     const { deviations } = analyzeEnhancedDeviation(results);
     const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
-    const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
+    
+    // 👇 اختيار اللحوم بناءً على الأنماط (مثل ميكو سبين) - ولكن نأخذ 2 فقط
+    const animalDeviations = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal');
+    const animalsWithSequence = animalDeviations.filter(d => d.sequenceBonus > 0);
+    
+    let animalPicks;
+    if (animalsWithSequence.length >= 2) {
+      animalPicks = animalsWithSequence.sort((a, b) => b.totalScore - a.totalScore).slice(0, 2);
+    } else {
+      animalPicks = animalDeviations.sort((a, b) => b.totalScore - a.totalScore).slice(0, 2);
+    }
+
     const finalPicks = [...veggiePicks, ...animalPicks];
     const wasInPicks = finalPicks.some(p => p.symbol === symbolId);
 
@@ -166,7 +177,7 @@ export default function HomePage() {
           <div className="absolute inset-5 border-r-2 border-cyan-400 rounded-full animate-spin [animation-duration:1.5s]"></div>
           <Cpu className="absolute inset-0 m-auto w-6 h-6 text-violet-400 animate-pulse" />
         </div>
-        <p className="text-slate-500 text-xs tracking-[0.3em] font-mono">SYSTEM INITIALIZATION</p>
+        <p className="text-slate-500 text-xs tracking-[0.3em] font-mono">SMART BETTOR INITIALIZING</p>
       </div>
     );
   }
@@ -184,7 +195,7 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-sm font-bold text-white tracking-wide">الراهن الذكي</h1>
-              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Statistical Reversion V9</p>
+              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Smart Bettor Intelligence</p>
             </div>
           </div>
           
@@ -228,13 +239,20 @@ export default function HomePage() {
                     <Scale className="w-5 h-5 text-amber-400" />
                     <span className="text-sm font-semibold text-white tracking-wide">محرك التوازن الإحصائي</span>
                   </div>
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION V9</span>
+                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION V16</span>
                 </div>
                 <StatisticalPredictor 
                   results={results} 
                   wins={wins} 
                   losses={losses} 
                   lastPickResult={lastPickResult} 
+                  onReset={() => {
+                    setWins(0);
+                    setLosses(0);
+                    setLastPickResult(null);
+                    localStorage.removeItem('smartBettor_wins');
+                    localStorage.removeItem('smartBettor_losses');
+                  }}
                 />
               </div>
             </div>
@@ -251,10 +269,10 @@ export default function HomePage() {
                   <p className="text-[10px] text-slate-500 mt-1">سجل النتيجة الجديدة لتحديث التحليل الفوري</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={handleUndo} disabled={submitting || results.length === 0} className="p-2 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.05] transition-all disabled:opacity-30 text-slate-400 hover:text-white"><RotateCcw className="w-4 h-4" /></button>
-                  <button onClick={handleClearAll} disabled={submitting || results.length === 0} className="p-2 rounded-lg bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 transition-all disabled:opacity-30 text-rose-400"><Trash2 className="w-4 h-4" /></button>
-                  <label className="p-2 rounded-lg bg-cyan-500/5 hover:bg-cyan-500/10 border border-cyan-500/10 transition-all cursor-pointer text-cyan-400">
-                    <Upload className="w-4 h-4" />
+                  <button onClick={handleUndo} disabled={submitting || results.length === 0} className="p-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.05] transition-all disabled:opacity-30 text-slate-400 hover:text-white"><RotateCcw className="w-5 h-5" /></button>
+                  <button onClick={handleClearAll} disabled={submitting || results.length === 0} className="p-2.5 rounded-lg bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 transition-all disabled:opacity-30 text-rose-400"><Trash2 className="w-5 h-5" /></button>
+                  <label className="p-2.5 rounded-lg bg-cyan-500/5 hover:bg-cyan-500/10 border border-cyan-500/10 transition-all cursor-pointer text-cyan-400">
+                    <Upload className="w-5 h-5" />
                     <input type="file" accept=".csv" className="hidden" onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (file) { 
@@ -355,7 +373,7 @@ export default function HomePage() {
       <footer className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 border-t border-white/[0.04] mt-6">
         <div className="flex items-center justify-between text-[10px] text-slate-600 font-mono tracking-widest uppercase">
           <span>Smart Bettor Intelligence</span>
-          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V9.0 · Reversion V9</span>
+          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V16.0</span>
         </div>
       </footer>
     </main>
@@ -454,7 +472,7 @@ function GapDisplay({ results }: { results: ResultRow[] }) {
 }
 
 // ==========================================
-// المحرك الإحصائي (Reversion V9)
+// المحرك الإحصائي (Reversion V16)
 // ==========================================
 
 interface EnhancedDeviationData {
@@ -486,15 +504,14 @@ function getRecentMomentum(results: ResultRow[]): { meatMomentum: number; vegMom
   return { meatMomentum, vegMomentum };
 }
 
-// 👇 الجديد: محرك الأنماط التسلسلية (N-Gram) المدمج
+// 👇 تم تعديل هذه الدالة فقط (V16): بونص أعلى للأنماط التسلسلية (مثل ميكو سبين)
 function getSequencePatternBonus(results: ResultRow[]): Record<string, number> {
   const bonus: Record<string, number> = {};
   SYMBOLS.forEach(s => { bonus[s.id] = 0; });
 
   if (results.length < 5) return bonus;
 
-  // نجرب الأطوال: 3 رموز، ثم 2 رموز
-  const patternLengths = [3, 2]; 
+  const patternLengths = [3, 2]; // أولاً 3، ثم 2
   
   for (const len of patternLengths) {
     if (results.length < len + 1) continue;
@@ -519,13 +536,12 @@ function getSequencePatternBonus(results: ResultRow[]): Record<string, number> {
       }
     }
 
-    // إذا لقينا تطابقات كافية (2 على الأقل)
     if (totalMatches >= 2) {
+      // 👇 بونص 50 نقطة (نفس ميكو سبين)
       Object.entries(matches).forEach(([symId, count]) => {
-        // نعطي بونص بناءً على نسبة التطابق (حد أقصى 25 نقطة)
-        bonus[symId] = (count / totalMatches) * 25;
+        bonus[symId] = (count / totalMatches) * 50;
       });
-      return bonus; // نوقف البحث بمجرد ما نلقى نمط مناسب
+      return bonus;
     }
   }
 
@@ -568,7 +584,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
   const windowSize = results.length;
   const window = results.slice(-windowSize);
   const momentum = getRecentMomentum(results);
-  const sequenceBonus = getSequencePatternBonus(results); // 👈 استخدام محرك الأنماط الجديد
+  const sequenceBonus = getSequencePatternBonus(results);
   const repeatRates = getRepeatRates(results);
 
   const counts: Record<string, number> = {};
@@ -646,30 +662,46 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 
     const doubleBonus = deviation < 0 && relativeGap > 1.2;
     
-    // 👇 الأوزان V9: الغياب 30%، التسلسل 25% (زاد)، الانحراف 15%، التكرار 15%، الزخم 10%، التكرار التاريخي 5%
-    let totalScore = 
-      (deviationScore * 0.15) + 
-      (gapScore * 0.30) + 
-      (momentumBonus * 0.10) + 
-      (streakBonus * 0.05) + 
-      (seqBonusForThisSymbol * 0.25) + 
-      (repeatBonus * 0.15);
+    let totalScore = 0;
 
-    // مكافأة الغياب المطلق
-    if (relativeGap >= 1.2) totalScore += 8;
-    if (relativeGap >= 1.5) totalScore += 8;
-    if (relativeGap >= 2.0) totalScore += 10;
+    if (sym.type === 'vegetable') {
+      // الخضار: نفس المعادلة القديمة (لم تتغير)
+      totalScore = 
+        (deviationScore * 0.15) + 
+        (gapScore * 0.20) + 
+        (momentumBonus * 0.10) + 
+        (streakBonus * 0.05) + 
+        (seqBonusForThisSymbol * 0.35) + 
+        (repeatBonus * 0.20);
+      
+      if (relativeGap >= 1.5) totalScore += 6;
+      if (relativeGap >= 2.0) totalScore += 8;
+    } else {
+      // 👇 اللحوم V16: التركيز على الأنماط (45%) والتكرار (30%)، وتخفيف الغياب (15%) - مثل ميكو سبين
+      totalScore = 
+        (deviationScore * 0.10) + 
+        (gapScore * 0.15) + 
+        (momentumBonus * 0.05) + 
+        (streakBonus * 0.10) + 
+        (seqBonusForThisSymbol * 0.45) + 
+        (repeatBonus * 0.20);
+      
+      if (relativeGap >= 1.5) totalScore += 5;
+      if (relativeGap >= 2.0) totalScore += 8;
+    }
     
-    // مكافأة التكرار الفوري
     const isLastResult = results[results.length - 1]?.symbol_id === sym.id;
-    if (isLastResult && repeatRate >= 10) {
-      totalScore += 10;
+    if (isLastResult) {
+      if (repeatRate >= 20) totalScore += 30;
+      else if (repeatRate >= 10) totalScore += 25;
+      else if (repeatRate >= 5) totalScore += 15;
+      else totalScore += 8;
     }
 
     if (doubleBonus) totalScore += 5;
 
     if (sym.type === 'animal') {
-      if (relativeGap < 1.0 && streakValue < 2 && seqBonusForThisSymbol === 0 && repeatRate < 5) {
+      if (relativeGap < 0.8 && streakValue < 1 && seqBonusForThisSymbol === 0 && repeatRate < 3) {
         totalScore = totalScore * 0.5;
       }
     }
@@ -698,18 +730,20 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 }
 
 // ==========================================
-// مكون التوقعات (Reversion V9)
+// مكون التوقعات (Reversion V16)
 // ==========================================
 function StatisticalPredictor({ 
   results, 
   wins, 
   losses, 
-  lastPickResult 
+  lastPickResult,
+  onReset
 }: { 
   results: ResultRow[]; 
   wins: number; 
   losses: number; 
-  lastPickResult: 'win' | 'loss' | null 
+  lastPickResult: 'win' | 'loss' | null;
+  onReset: () => void;
 }) {
   if (results.length < 5) {
     return (
@@ -724,7 +758,18 @@ function StatisticalPredictor({
   const { deviations, windowSize, momentum } = analyzeEnhancedDeviation(results);
 
   const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
-  const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
+
+  // 👇 اختيار اللحوم بناءً على الأنماط أولاً (مثل ميكو سبين) - ولكن نأخذ 2 فقط
+  const animalDeviations = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal');
+  const animalsWithSequence = animalDeviations.filter(d => d.sequenceBonus > 0);
+  
+  let animalPicks;
+  if (animalsWithSequence.length >= 2) {
+    animalPicks = animalsWithSequence.sort((a, b) => b.totalScore - a.totalScore).slice(0, 2);
+  } else {
+    animalPicks = animalDeviations.sort((a, b) => b.totalScore - a.totalScore).slice(0, 2);
+  }
+
   const finalPicks = [...veggiePicks, ...animalPicks].sort((a, b) => b.totalScore - a.totalScore);
 
   const doubleBonusCount = finalPicks.filter(d => d.doubleBonus).length;
@@ -738,7 +783,7 @@ function StatisticalPredictor({
     <div className="flex-1 flex flex-col justify-between gap-5">
       <div>
         <div className="flex items-center justify-between mb-4">
-          <span className="text-[10px] text-slate-500 font-mono uppercase">Statistical Reversion V9</span>
+          <span className="text-[10px] text-slate-500 font-mono uppercase">Smart Bettor V16</span>
           <span className="text-[10px] font-mono text-cyan-400">Window: {windowSize}</span>
         </div>
 
@@ -774,19 +819,34 @@ function StatisticalPredictor({
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-2 mt-4 mb-4">
-          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 text-center">
-            <div className="text-[9px] text-emerald-300 mb-1">رابح</div>
-            <div className="text-lg font-bold text-emerald-400 font-mono">{wins}</div>
+        {/* 👇 بلوك الرابح والخاسر مع زر التصفير */}
+        <div className="relative mb-4">
+          <div className="grid grid-cols-3 gap-2 mt-4">
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 text-center">
+              <div className="text-[9px] text-emerald-300 mb-1">رابح</div>
+              <div className="text-lg font-bold text-emerald-400 font-mono">{wins}</div>
+            </div>
+            <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-2 text-center">
+              <div className="text-[9px] text-rose-300 mb-1">خاسر</div>
+              <div className="text-lg font-bold text-rose-400 font-mono">{losses}</div>
+            </div>
+            <div className="bg-white/[0.02] border border-white/10 rounded-lg p-2 text-center">
+              <div className="text-[9px] text-slate-400 mb-1">نسبة النجاح</div>
+              <div className="text-lg font-bold text-white font-mono">{winRate.toFixed(1)}%</div>
+            </div>
           </div>
-          <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-2 text-center">
-            <div className="text-[9px] text-rose-300 mb-1">خاسر</div>
-            <div className="text-lg font-bold text-rose-400 font-mono">{losses}</div>
-          </div>
-          <div className="bg-white/[0.02] border border-white/10 rounded-lg p-2 text-center">
-            <div className="text-[9px] text-slate-400 mb-1">نسبة النجاح</div>
-            <div className="text-lg font-bold text-white font-mono">{winRate.toFixed(1)}%</div>
-          </div>
+
+          {/* 👇 زر التصفير */}
+          <button
+            onClick={() => {
+              if (!confirm('هل أنت متأكد من تصفير إحصائيات الرابح والخاسر؟')) return;
+              onReset();
+            }}
+            className="absolute -top-6 left-0 text-[9px] text-slate-500 hover:text-rose-400 transition-colors flex items-center gap-1"
+            title="تصفير الإحصائيات"
+          >
+            <RotateCcw className="w-3 h-3" /> تصفير
+          </button>
         </div>
 
         {lastPickResult && (
@@ -858,7 +918,7 @@ function StatisticalPredictor({
 }
 
 // ==========================================
-// لوحة الانحراف (Reversion V9)
+// لوحة الانحراف (Reversion V16)
 // ==========================================
 function DeviationPanel({ results }: { results: ResultRow[] }) {
   if (results.length < 10) {
