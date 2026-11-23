@@ -504,14 +504,13 @@ function getRecentMomentum(results: ResultRow[]): { meatMomentum: number; vegMom
   return { meatMomentum, vegMomentum };
 }
 
-// 👇 تم تعديل هذه الدالة فقط (V16): بونص أعلى للأنماط التسلسلية (مثل ميكو سبين)
 function getSequencePatternBonus(results: ResultRow[]): Record<string, number> {
   const bonus: Record<string, number> = {};
   SYMBOLS.forEach(s => { bonus[s.id] = 0; });
 
   if (results.length < 5) return bonus;
 
-  const patternLengths = [3, 2]; // أولاً 3، ثم 2
+  const patternLengths = [3, 2]; 
   
   for (const len of patternLengths) {
     if (results.length < len + 1) continue;
@@ -537,7 +536,6 @@ function getSequencePatternBonus(results: ResultRow[]): Record<string, number> {
     }
 
     if (totalMatches >= 2) {
-      // 👇 بونص 50 نقطة (نفس ميكو سبين)
       Object.entries(matches).forEach(([symId, count]) => {
         bonus[symId] = (count / totalMatches) * 50;
       });
@@ -665,7 +663,6 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     let totalScore = 0;
 
     if (sym.type === 'vegetable') {
-      // الخضار: نفس المعادلة القديمة (لم تتغير)
       totalScore = 
         (deviationScore * 0.15) + 
         (gapScore * 0.20) + 
@@ -677,7 +674,6 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
       if (relativeGap >= 1.5) totalScore += 6;
       if (relativeGap >= 2.0) totalScore += 8;
     } else {
-      // 👇 اللحوم V16: التركيز على الأنماط (45%) والتكرار (30%)، وتخفيف الغياب (15%) - مثل ميكو سبين
       totalScore = 
         (deviationScore * 0.10) + 
         (gapScore * 0.15) + 
