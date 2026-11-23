@@ -540,10 +540,10 @@ function analyzeConditionalProbability(results: ResultRow[]): {
     const deviationScore = Math.max(0, Math.min(100, normalizedDev * 2 + 50));
     
     const conditionalProb = conditionalProbs[sym.id] || 0;
-    const totalScore = 
-      (conditionalProb * 0.50) + 
-      (deviationScore * 0.30) + 
-      (theoreticalPct * 0.20);
+        const totalScore = 
+      (conditionalProb * 0.55) + 
+      (deviationScore * 0.20) + 
+      (theoreticalPct * 0.25);
 
     return {
       symbol: sym.id,
