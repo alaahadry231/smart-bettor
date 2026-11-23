@@ -100,7 +100,11 @@ export default function HomePage() {
     setSubmitting(true);
 
     const { deviations } = analyzeConditionalProbability(results);
-    const finalPicks = getTopPicks(deviations);
+    
+    // 👇 رجعنا الفلتر: 3 خضار + 2 لحوم
+    const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
+    const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
+    const finalPicks = [...veggiePicks, ...animalPicks];
     
     const wasInPicks = finalPicks.some(p => p.symbol === symbolId);
     if (wasInPicks) {
@@ -182,7 +186,7 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-sm font-bold text-white tracking-wide">الراهن الذكي</h1>
-              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Conditional Engine V7</p>
+              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Conditional Engine V7.1</p>
             </div>
           </div>
           
@@ -226,7 +230,7 @@ export default function HomePage() {
                     <Scale className="w-5 h-5 text-amber-400" />
                     <span className="text-sm font-semibold text-white tracking-wide">محرك الاحتمال الشرطي</span>
                   </div>
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">V7</span>
+                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">V7.1</span>
                 </div>
                 <StatisticalPredictor 
                   results={results} 
@@ -360,7 +364,7 @@ export default function HomePage() {
       <footer className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 border-t border-white/[0.04] mt-6">
         <div className="flex items-center justify-between text-[10px] text-slate-600 font-mono tracking-widest uppercase">
           <span>Smart Bettor Intelligence</span>
-          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V7.0 · Conditional</span>
+          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V7.1 · Conditional + 3+2</span>
         </div>
       </footer>
     </main>
@@ -459,7 +463,7 @@ function GapDisplay({ results }: { results: ResultRow[] }) {
 }
 
 // ==========================================
-// المحرك الإحصائي (Conditional V7)
+// المحرك الإحصائي (Conditional V7.1)
 // ==========================================
 
 interface ConditionalData {
@@ -473,33 +477,25 @@ interface ConditionalData {
   totalScore: number;
 }
 
-// 👇 دالة جديدة: حساب الاحتمال الشرطي
-// بناءً على الغياب الحالي
 function getConditionalProbabilities(results: ResultRow[]): Record<string, number> {
-  const maxGap = 50; // أقصى غياب ممكن نأخذه بعين الاعتبار
   const probabilities: Record<string, number> = {};
   
   SYMBOLS.forEach(s => {
-    // 1. حساب الغياب الحالي
     let currentGap = 0;
     for (let i = results.length - 1; i >= 0; i--) {
       if (results[i].symbol_id === s.id) break;
       currentGap++;
     }
 
-    // 2. نحسب كم مرة ظهر هذا الرمز بعد غياب مشابه (من maxGap إلى currentGap)
     let similarGapCount = 0;
     let appearedAfterCount = 0;
     
     for (let i = 1; i < results.length; i++) {
-      // نحسب الغياب قبل كل ظهور
       let gapBefore = 0;
       for (let j = i - 1; j >= 0; j--) {
         if (results[j].symbol_id === s.id) break;
         gapBefore++;
       }
-      
-      // إذا الغياب كان قريب من الغياب الحالي (بفارق 2)
       if (Math.abs(gapBefore - currentGap) <= 2) {
         similarGapCount++;
         if (results[i].symbol_id === s.id) {
@@ -508,8 +504,6 @@ function getConditionalProbabilities(results: ResultRow[]): Record<string, numbe
       }
     }
 
-    // 3. الاحتمال الشرطي = (عدد الظهور بعد غياب مشابه / عدد المرات اللي كان فيها غياب مشابه)
-    // إذا ما في حالات مشابهة، نستخدم الاحتمال النظري
     if (similarGapCount >= 3) {
       probabilities[s.id] = (appearedAfterCount / similarGapCount) * 100;
     } else {
@@ -545,7 +539,6 @@ function analyzeConditionalProbability(results: ResultRow[]): {
     const normalizedDev = -deviation;
     const deviationScore = Math.max(0, Math.min(100, normalizedDev * 2 + 50));
     
-    // 👇 النقاط النهائية: 50% احتمال شرطي + 30% انحراف + 20% نظري
     const conditionalProb = conditionalProbs[sym.id] || 0;
     const totalScore = 
       (conditionalProb * 0.50) + 
@@ -574,14 +567,8 @@ function analyzeConditionalProbability(results: ResultRow[]): {
   return { deviations, windowSize };
 }
 
-// 👇 دالة جديدة: اختيار أفضل 5 رموز (بدون فلتر إجباري)
-function getTopPicks(deviations: ConditionalData[]): ConditionalData[] {
-  // نختار أفضل 5 رموز عامة
-  return deviations.slice(0, 5);
-}
-
 // ==========================================
-// مكون التوقعات (Conditional V7)
+// مكون التوقعات (Conditional V7.1 - مع 3+2)
 // ==========================================
 function StatisticalPredictor({ 
   results, 
@@ -607,7 +594,11 @@ function StatisticalPredictor({
   }
 
   const { deviations } = analyzeConditionalProbability(results);
-  const finalPicks = getTopPicks(deviations);
+
+  // 👇 رجعنا الفلتر: 3 خضار + 2 لحوم
+  const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
+  const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
+  const finalPicks = [...veggiePicks, ...animalPicks].sort((a, b) => b.totalScore - a.totalScore);
 
   const totalBets = wins + losses;
   const winRate = totalBets > 0 ? (wins / totalBets) * 100 : 0;
@@ -616,14 +607,14 @@ function StatisticalPredictor({
     <div className="flex-1 flex flex-col justify-between gap-5">
       <div>
         <div className="flex items-center justify-between mb-4">
-          <span className="text-[10px] text-slate-500 font-mono uppercase">Conditional V7</span>
-          <span className="text-[10px] font-mono text-cyan-400">Top 5</span>
+          <span className="text-[10px] text-slate-500 font-mono uppercase">Conditional V7.1</span>
+          <span className="text-[10px] font-mono text-cyan-400">3+2 Format</span>
         </div>
 
         <div className="mb-3 p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-2">
           <TrendingUp className="w-3.5 h-3.5 text-indigo-400" />
           <span className="text-[10px] text-indigo-300">
-            يعتمد على الاحتمال الشرطي (الغياب) + الانحراف + النظري
+            يعتمد على الاحتمال الشرطي + الانحراف + النظري
           </span>
         </div>
 
@@ -713,7 +704,7 @@ function StatisticalPredictor({
 }
 
 // ==========================================
-// لوحة الانحراف (Conditional V7)
+// لوحة الانحراف (Conditional V7.1)
 // ==========================================
 function DeviationPanel({ results }: { results: ResultRow[] }) {
   if (results.length < 10) {
