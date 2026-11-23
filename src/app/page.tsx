@@ -95,71 +95,15 @@ export default function HomePage() {
     localStorage.setItem('smartBettor_losses', losses.toString());
   }, [wins, losses]);
 
-  // 👇 دالة جديدة: التوقع بناءً على الأنماط أولاً (4، 3، 2)
-  const predictBasedOnPatterns = useCallback((results: ResultRow[]): { symbolId: SymbolId; patternLength: number; confidence: number }[] => {
-    if (results.length < 5) return [];
-
-    // نجرب الأطوال: 4، ثم 3، ثم 2
-    const patternLengths = [4, 3, 2];
-    
-    for (const len of patternLengths) {
-      if (results.length < len + 1) continue;
-
-      const targetSeq = results.slice(-len).map(r => r.symbol_id);
-      const matches: Record<string, number> = {};
-      let totalMatches = 0;
-
-      for (let i = 0; i <= results.length - len - 1; i++) {
-        let isMatch = true;
-        for (let j = 0; j < len; j++) {
-          if (results[i + j].symbol_id !== targetSeq[j]) {
-            isMatch = false;
-            break;
-          }
-        }
-        
-        if (isMatch) {
-          const nextSymbol = results[i + len].symbol_id;
-          matches[nextSymbol] = (matches[nextSymbol] || 0) + 1;
-          totalMatches++;
-        }
-      }
-
-      if (totalMatches >= 2) {
-        // نرجع الرموز المتوقعة مع نسبة الثقة
-        return Object.entries(matches)
-          .map(([symbolId, count]) => ({
-            symbolId: symbolId as SymbolId,
-            patternLength: len,
-            confidence: (count / totalMatches) * 100,
-          }))
-          .sort((a, b) => b.confidence - a.confidence);
-      }
-    }
-
-    return [];
-  }, []);
-
   const handleAddSymbol = useCallback(async (symbolId: SymbolId) => {
     if (submitting) return;
     setSubmitting(true);
 
-    // 👇 التوقع بناءً على الأنماط
-    const patternPredictions = predictBasedOnPatterns(results);
-    
-    // نختار 3 خضار و 2 لحوم من التوقعات
-    const predictedVeggies = patternPredictions.filter(p => {
-      const sym = SYMBOLS.find(s => s.id === p.symbolId);
-      return sym?.type === 'vegetable';
-    }).slice(0, 3);
-
-    const predictedAnimals = patternPredictions.filter(p => {
-      const sym = SYMBOLS.find(s => s.id === p.symbolId);
-      return sym?.type === 'animal';
-    }).slice(0, 2);
-
-    const finalPicks = [...predictedVeggies, ...predictedAnimals];
-    const wasInPicks = finalPicks.some(p => p.symbolId === symbolId);
+    const { deviations } = analyzeEnhancedDeviation(results);
+    const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
+    const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
+    const finalPicks = [...veggiePicks, ...animalPicks];
+    const wasInPicks = finalPicks.some(p => p.symbol === symbolId);
 
     if (wasInPicks) {
       setWins(prev => prev + 1);
@@ -182,7 +126,7 @@ export default function HomePage() {
       setError('تعذر إضافة النتيجة'); 
     }
     finally { setSubmitting(false); }
-  }, [submitting, fetchResults, results, predictBasedOnPatterns]);
+  }, [submitting, fetchResults, results]);
 
   const handleUndo = useCallback(async () => {
     if (submitting || results.length === 0) return;
@@ -222,7 +166,7 @@ export default function HomePage() {
           <div className="absolute inset-5 border-r-2 border-cyan-400 rounded-full animate-spin [animation-duration:1.5s]"></div>
           <Cpu className="absolute inset-0 m-auto w-6 h-6 text-violet-400 animate-pulse" />
         </div>
-        <p className="text-slate-500 text-xs tracking-[0.3em] font-mono">SMART BETTOR INITIALIZING</p>
+        <p className="text-slate-500 text-xs tracking-[0.3em] font-mono">SYSTEM INITIALIZATION</p>
       </div>
     );
   }
@@ -240,7 +184,7 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-sm font-bold text-white tracking-wide">الراهن الذكي</h1>
-              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Smart Bettor Intelligence</p>
+              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Statistical Reversion V6</p>
             </div>
           </div>
           
@@ -282,23 +226,15 @@ export default function HomePage() {
                 <div className="flex items-center justify-between mb-8">
                   <div className="flex items-center gap-3">
                     <Scale className="w-5 h-5 text-amber-400" />
-                    <span className="text-sm font-semibold text-white tracking-wide">محرك الأنماط التسلسلية</span>
+                    <span className="text-sm font-semibold text-white tracking-wide">محرك التوازن الإحصائي</span>
                   </div>
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">PATTERN V1</span>
+                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION V6</span>
                 </div>
                 <StatisticalPredictor 
                   results={results} 
                   wins={wins} 
                   losses={losses} 
                   lastPickResult={lastPickResult} 
-                  onReset={() => {
-                    setWins(0);
-                    setLosses(0);
-                    setLastPickResult(null);
-                    localStorage.removeItem('smartBettor_wins');
-                    localStorage.removeItem('smartBettor_losses');
-                  }}
-                  predictBasedOnPatterns={predictBasedOnPatterns}
                 />
               </div>
             </div>
@@ -315,10 +251,10 @@ export default function HomePage() {
                   <p className="text-[10px] text-slate-500 mt-1">سجل النتيجة الجديدة لتحديث التحليل الفوري</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={handleUndo} disabled={submitting || results.length === 0} className="p-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.05] transition-all disabled:opacity-30 text-slate-400 hover:text-white"><RotateCcw className="w-5 h-5" /></button>
-                  <button onClick={handleClearAll} disabled={submitting || results.length === 0} className="p-2.5 rounded-lg bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 transition-all disabled:opacity-30 text-rose-400"><Trash2 className="w-5 h-5" /></button>
-                  <label className="p-2.5 rounded-lg bg-cyan-500/5 hover:bg-cyan-500/10 border border-cyan-500/10 transition-all cursor-pointer text-cyan-400">
-                    <Upload className="w-5 h-5" />
+                  <button onClick={handleUndo} disabled={submitting || results.length === 0} className="p-2 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.05] transition-all disabled:opacity-30 text-slate-400 hover:text-white"><RotateCcw className="w-4 h-4" /></button>
+                  <button onClick={handleClearAll} disabled={submitting || results.length === 0} className="p-2 rounded-lg bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 transition-all disabled:opacity-30 text-rose-400"><Trash2 className="w-4 h-4" /></button>
+                  <label className="p-2 rounded-lg bg-cyan-500/5 hover:bg-cyan-500/10 border border-cyan-500/10 transition-all cursor-pointer text-cyan-400">
+                    <Upload className="w-4 h-4" />
                     <input type="file" accept=".csv" className="hidden" onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (file) { 
@@ -419,7 +355,7 @@ export default function HomePage() {
       <footer className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 border-t border-white/[0.04] mt-6">
         <div className="flex items-center justify-between text-[10px] text-slate-600 font-mono tracking-widest uppercase">
           <span>Smart Bettor Intelligence</span>
-          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V1.0 (Pattern)</span>
+          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V6.0 · Reversion V6</span>
         </div>
       </footer>
     </main>
@@ -518,7 +454,7 @@ function GapDisplay({ results }: { results: ResultRow[] }) {
 }
 
 // ==========================================
-// المحرك الإحصائي (Reversion V16)
+// المحرك الإحصائي (Reversion V6)
 // ==========================================
 
 interface EnhancedDeviationData {
@@ -548,6 +484,46 @@ function getRecentMomentum(results: ResultRow[]): { meatMomentum: number; vegMom
   const meatMomentum = (animals / recent.length) * 100;
   const vegMomentum = (veggies / recent.length) * 100;
   return { meatMomentum, vegMomentum };
+}
+
+function getSequenceAnimalBonus(results: ResultRow[]): Record<string, number> {
+  const bonus: Record<string, number> = {};
+  SYMBOLS.forEach(s => { bonus[s.id] = 0; });
+
+  if (results.length < 10) return bonus;
+
+  const patternLength = 3;
+  const targetSeq = results.slice(-patternLength).map(r => r.symbol_id);
+  
+  const animalMatches: Record<string, number> = {};
+  let totalMatches = 0;
+
+  for (let i = 0; i <= results.length - patternLength - 1; i++) {
+    let isMatch = true;
+    for (let j = 0; j < patternLength; j++) {
+      if (results[i + j].symbol_id !== targetSeq[j]) {
+        isMatch = false;
+        break;
+      }
+    }
+    
+    if (isMatch) {
+      const nextSymbol = results[i + patternLength].symbol_id;
+      const symInfo = SYMBOLS.find(s => s.id === nextSymbol);
+      if (symInfo?.type === 'animal') {
+        animalMatches[nextSymbol] = (animalMatches[nextSymbol] || 0) + 1;
+        totalMatches++;
+      }
+    }
+  }
+
+  if (totalMatches >= 2) {
+    Object.entries(animalMatches).forEach(([symId, count]) => {
+      bonus[symId] = (count / totalMatches) * 30;
+    });
+  }
+
+  return bonus;
 }
 
 function getRepeatRates(results: ResultRow[]): Record<string, number> {
@@ -586,6 +562,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
   const windowSize = results.length;
   const window = results.slice(-windowSize);
   const momentum = getRecentMomentum(results);
+  const sequenceBonus = getSequenceAnimalBonus(results);
   const repeatRates = getRepeatRates(results);
 
   const counts: Record<string, number> = {};
@@ -652,6 +629,8 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     else if (streakValue >= 8) streakBonus = 10;
     else if (streakValue >= 4) streakBonus = 5;
 
+    const seqBonusForThisSymbol = sequenceBonus[sym.id] || 0;
+
     const repeatRate = repeatRates[sym.id] || 0;
     let repeatBonus = 0;
     if (repeatRate >= 30) repeatBonus = 20;
@@ -661,44 +640,28 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 
     const doubleBonus = deviation < 0 && relativeGap > 1.2;
     
-    let totalScore = 0;
-
-    if (sym.type === 'vegetable') {
-      totalScore = 
-        (deviationScore * 0.15) + 
-        (gapScore * 0.20) + 
-        (momentumBonus * 0.10) + 
-        (streakBonus * 0.05) + 
-        (repeatBonus * 0.20);
-      
-      if (relativeGap >= 1.5) totalScore += 6;
-      if (relativeGap >= 2.0) totalScore += 8;
-    } else {
-      totalScore = 
-        (deviationScore * 0.10) + 
-        (gapScore * 0.15) + 
-        (momentumBonus * 0.05) + 
-        (streakBonus * 0.10) + 
-        (repeatBonus * 0.20);
-      
-      if (relativeGap >= 1.5) totalScore += 5;
-      if (relativeGap >= 2.0) totalScore += 8;
-    }
+    // 👇 توزيع الأوزان (V6): تركيز أكبر على الغياب والتسلسل
+    let totalScore = 
+      (deviationScore * 0.15) + 
+      (gapScore * 0.35) + 
+      (momentumBonus * 0.10) + 
+      (streakBonus * 0.05) + 
+      (seqBonusForThisSymbol * 0.20) +
+      (repeatBonus * 0.15);
     
-    const isLastResult = results[results.length - 1]?.symbol_id === sym.id;
-    if (isLastResult) {
-      if (repeatRate >= 20) totalScore += 30;
-      else if (repeatRate >= 10) totalScore += 25;
-      else if (repeatRate >= 5) totalScore += 15;
-      else totalScore += 8;
+    // مكافأة إضافية للغياب العالي
+    if (relativeGap > 2.0) totalScore += 15;
+    else if (relativeGap > 1.5) totalScore += 8;
+    if (doubleBonus) totalScore += 10;
+
+    // 👇 دفعة للحيوانات (عشان نضمن 3+2 دايماً)
+    if (sym.type === 'animal') {
+      totalScore += 10; 
     }
 
-    if (doubleBonus) totalScore += 5;
-
-    if (sym.type === 'animal') {
-      if (relativeGap < 0.8 && streakValue < 1 && repeatRate < 3) {
-        totalScore = totalScore * 0.5;
-      }
+    // إذا اللحوم مش سخنة والحيوان غيابه ضعيف، نخفضه
+    if (sym.type === 'animal' && relativeGap < 1.2 && streakValue < 2 && seqBonusForThisSymbol === 0 && repeatRate < 10) {
+      totalScore = totalScore * 0.5;
     }
 
     return {
@@ -713,7 +676,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
       gapScore,
       momentumBonus,
       streakBonus,
-      sequenceBonus: 0,
+      sequenceBonus: seqBonusForThisSymbol,
       repeatRate,
       repeatBonus,
       totalScore: Math.min(100, totalScore),
@@ -725,22 +688,18 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 }
 
 // ==========================================
-// مكون التوقعات (Pattern V1)
+// مكون التوقعات (Reversion V6)
 // ==========================================
 function StatisticalPredictor({ 
   results, 
   wins, 
   losses, 
-  lastPickResult,
-  onReset,
-  predictBasedOnPatterns
+  lastPickResult 
 }: { 
   results: ResultRow[]; 
   wins: number; 
   losses: number; 
-  lastPickResult: 'win' | 'loss' | null;
-  onReset: () => void;
-  predictBasedOnPatterns: (results: ResultRow[]) => { symbolId: SymbolId; patternLength: number; confidence: number }[];
+  lastPickResult: 'win' | 'loss' | null 
 }) {
   if (results.length < 5) {
     return (
@@ -752,20 +711,15 @@ function StatisticalPredictor({
     );
   }
 
-  const patternPredictions = predictBasedOnPatterns(results);
-  const usedPatternLength = patternPredictions.length > 0 ? patternPredictions[0].patternLength : 0;
+  const { deviations, windowSize, momentum } = analyzeEnhancedDeviation(results);
 
-  const predictedVeggies = patternPredictions.filter(p => {
-    const sym = SYMBOLS.find(s => s.id === p.symbolId);
-    return sym?.type === 'vegetable';
-  }).slice(0, 3);
+  const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
+  const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
+  const finalPicks = [...veggiePicks, ...animalPicks].sort((a, b) => b.totalScore - a.totalScore);
 
-  const predictedAnimals = patternPredictions.filter(p => {
-    const sym = SYMBOLS.find(s => s.id === p.symbolId);
-    return sym?.type === 'animal';
-  }).slice(0, 2);
-
-  const finalPicks = [...predictedVeggies, ...predictedAnimals];
+  const doubleBonusCount = finalPicks.filter(d => d.doubleBonus).length;
+  const repeatCandidatesCount = finalPicks.filter(d => d.repeatBonus > 0).length;
+  const isMeatHot = momentum.meatMomentum > 30;
 
   const totalBets = wins + losses;
   const winRate = totalBets > 0 ? (wins / totalBets) * 100 : 0;
@@ -774,49 +728,55 @@ function StatisticalPredictor({
     <div className="flex-1 flex flex-col justify-between gap-5">
       <div>
         <div className="flex items-center justify-between mb-4">
-          <span className="text-[10px] text-slate-500 font-mono uppercase">Pattern V1</span>
-          <span className="text-[10px] font-mono text-cyan-400">
-            {usedPatternLength > 0 ? `نمط ${usedPatternLength} رموز` : 'لا يوجد نمط'}
-          </span>
+          <span className="text-[10px] text-slate-500 font-mono uppercase">Statistical Reversion V6</span>
+          <span className="text-[10px] font-mono text-cyan-400">Window: {windowSize}</span>
         </div>
 
-        {usedPatternLength > 0 && (
-          <div className="mb-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center gap-2">
-            <Target className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-[10px] text-amber-300">
-              تم العثور على نمط متكرر بطول {usedPatternLength} رموز
+        <div className={`mb-3 p-2 rounded-lg flex items-center justify-between ${
+          isMeatHot ? 'bg-rose-500/10 border border-rose-500/20' : 'bg-emerald-500/10 border border-emerald-500/20'
+        }`}>
+          <div className="flex items-center gap-2">
+            <Flame className={`w-3.5 h-3.5 ${isMeatHot ? 'text-rose-400' : 'text-emerald-400'}`} />
+            <span className={`text-[10px] ${isMeatHot ? 'text-rose-300' : 'text-emerald-300'}`}>
+              {isMeatHot ? 'اللحوم سخنة' : 'الخضار مسيطرة'}
+            </span>
+          </div>
+          <span className={`text-[10px] font-mono ${isMeatHot ? 'text-rose-400' : 'text-emerald-400'}`}>
+            {isMeatHot ? `${momentum.meatMomentum.toFixed(0)}%` : `${momentum.vegMomentum.toFixed(0)}%`}
+          </span>
+        </div>
+        
+        {doubleBonusCount > 0 && (
+          <div className="mb-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-[10px] text-emerald-300">
+              {doubleBonusCount} رموز إشارة مزدوجة (انحراف + غياب)
             </span>
           </div>
         )}
 
-        {/* 👇 بلوك الرابح والخاسر مع زر التصفير */}
-        <div className="relative mb-4">
-          <div className="grid grid-cols-3 gap-2 mt-4">
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 text-center">
-              <div className="text-[9px] text-emerald-300 mb-1">رابح</div>
-              <div className="text-lg font-bold text-emerald-400 font-mono">{wins}</div>
-            </div>
-            <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-2 text-center">
-              <div className="text-[9px] text-rose-300 mb-1">خاسر</div>
-              <div className="text-lg font-bold text-rose-400 font-mono">{losses}</div>
-            </div>
-            <div className="bg-white/[0.02] border border-white/10 rounded-lg p-2 text-center">
-              <div className="text-[9px] text-slate-400 mb-1">نسبة النجاح</div>
-              <div className="text-lg font-bold text-white font-mono">{winRate.toFixed(1)}%</div>
-            </div>
+        {repeatCandidatesCount > 0 && (
+          <div className="mb-4 p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center gap-2">
+            <Repeat className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-[10px] text-cyan-300">
+              {repeatCandidatesCount} رموز لديها سجل تكرار
+            </span>
           </div>
+        )}
 
-          {/* 👇 زر التصفير */}
-          <button
-            onClick={() => {
-              if (!confirm('هل أنت متأكد من تصفير إحصائيات الرابح والخاسر؟')) return;
-              onReset();
-            }}
-            className="absolute -top-6 left-0 text-[9px] text-slate-500 hover:text-rose-400 transition-colors flex items-center gap-1"
-            title="تصفير الإحصائيات"
-          >
-            <RotateCcw className="w-3 h-3" /> تصفير
-          </button>
+        <div className="grid grid-cols-3 gap-2 mt-4 mb-4">
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 text-center">
+            <div className="text-[9px] text-emerald-300 mb-1">رابح</div>
+            <div className="text-lg font-bold text-emerald-400 font-mono">{wins}</div>
+          </div>
+          <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-2 text-center">
+            <div className="text-[9px] text-rose-300 mb-1">خاسر</div>
+            <div className="text-lg font-bold text-rose-400 font-mono">{losses}</div>
+          </div>
+          <div className="bg-white/[0.02] border border-white/10 rounded-lg p-2 text-center">
+            <div className="text-[9px] text-slate-400 mb-1">نسبة النجاح</div>
+            <div className="text-lg font-bold text-white font-mono">{winRate.toFixed(1)}%</div>
+          </div>
         </div>
 
         {lastPickResult && (
@@ -831,18 +791,28 @@ function StatisticalPredictor({
 
         <div className="grid grid-cols-5 gap-2">
           {finalPicks.map((p, i) => {
-            const sym = SYMBOLS.find(s => s.id === p.symbolId)!;
+            const sym = SYMBOLS.find(s => s.id === p.symbol)!;
             return (
-              <div key={p.symbolId} className={`relative flex flex-col items-center justify-center p-3 rounded-xl border transition-all hover:-translate-y-1 ${
-                p.confidence > 40 ? 'bg-emerald-500/10 border-emerald-500/40' :
-                p.confidence > 20 ? 'bg-amber-500/10 border-amber-500/40' :
+              <div key={p.symbol} className={`relative flex flex-col items-center justify-center p-3 rounded-xl border transition-all hover:-translate-y-1 ${
+                p.repeatBonus >= 15 ? 'bg-cyan-500/10 border-cyan-500/40' :
+                p.momentumBonus > 0 ? 'bg-rose-500/10 border-rose-500/40' :
+                p.doubleBonus ? 'bg-emerald-500/10 border-emerald-500/40' :
                 i === 0 ? 'bg-violet-500/10 border-violet-500/30' : 
                 'bg-white/[0.02] border-white/5'
               }`}>
+                {(p.momentumBonus > 0 || p.doubleBonus || p.repeatBonus >= 15) && (
+                  <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] ${
+                    p.repeatBonus >= 15 ? 'bg-cyan-500' :
+                    p.momentumBonus > 0 ? 'bg-rose-500' : 'bg-emerald-500'
+                  }`}>
+                    {p.repeatBonus >= 15 ? '🔄' : p.momentumBonus > 0 ? '🔥' : '⚡'}
+                  </div>
+                )}
                 <div className="text-2xl mb-1">{sym.emoji}</div>
-                <div className="text-sm font-bold font-mono text-white">{p.confidence.toFixed(0)}%</div>
+                <div className="text-sm font-bold font-mono text-white">{p.totalScore.toFixed(0)}</div>
                 <div className="text-[9px] text-slate-500">
-                  نمط {p.patternLength}
+                  <ArrowDownRight className={`w-3 h-3 inline ${p.deviation < 0 ? 'text-emerald-400' : 'text-rose-400'}`} />
+                  {p.deviation.toFixed(1)}%
                 </div>
               </div>
             );
@@ -853,20 +823,21 @@ function StatisticalPredictor({
       <div className="space-y-2">
         <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
         {finalPicks.map(p => {
-          const sym = SYMBOLS.find(s => s.id === p.symbolId)!;
+          const sym = SYMBOLS.find(s => s.id === p.symbol)!;
           return (
-            <div key={p.symbolId} className="flex items-center gap-3 text-[10px]">
+            <div key={p.symbol} className="flex items-center gap-3 text-[10px]">
               <span className="w-5 text-center">{sym.emoji}</span>
               <span className="text-slate-400 w-12">{sym.name}</span>
               <div className="flex-1 h-1 bg-white/[0.03] rounded-full overflow-hidden">
                 <div className={`h-full rounded-full ${
-                  p.confidence > 40 ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' :
-                  p.confidence > 20 ? 'bg-gradient-to-r from-amber-500 to-orange-400' :
+                  p.repeatBonus >= 15 ? 'bg-gradient-to-r from-cyan-500 to-blue-400' :
+                  p.momentumBonus > 0 ? 'bg-gradient-to-r from-rose-500 to-orange-400' :
+                  p.doubleBonus ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' : 
                   'bg-gradient-to-r from-violet-500 to-cyan-400'
-                }`} style={{ width: `${p.confidence}%` }} />
+                }`} style={{ width: `${p.totalScore}%` }} />
               </div>
               <span className="text-slate-500 font-mono w-16 text-left">
-                {p.confidence.toFixed(0)}%
+                {p.actualPct.toFixed(0)}% / {p.theoreticalPct.toFixed(0)}%
               </span>
             </div>
           );
@@ -877,7 +848,7 @@ function StatisticalPredictor({
 }
 
 // ==========================================
-// لوحة الانحراف (Reversion V16)
+// لوحة الانحراف (Reversion V6)
 // ==========================================
 function DeviationPanel({ results }: { results: ResultRow[] }) {
   if (results.length < 10) {
@@ -904,6 +875,7 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
                 {d.repeatBonus >= 15 && <span className="text-[10px]">🔄</span>}
                 {d.momentumBonus > 0 && <span className="text-[10px]">🔥</span>}
                 {d.doubleBonus && !d.momentumBonus && <span className="text-[10px]">⚡</span>}
+                {d.sequenceBonus > 0 && <span className="text-[10px]">🎯</span>}
               </div>
               <span className={`text-[10px] font-mono font-bold ${isUnder ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {d.deviation > 0 ? '+' : ''}{d.deviation.toFixed(1)}%
@@ -922,6 +894,30 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
               <div className="flex justify-between">
                 <span className="text-slate-500">غياب</span>
                 <span className="text-slate-300">{d.currentGap} / {d.avgGap.toFixed(1)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">زخم</span>
+                <span className={`${d.momentumBonus > 0 ? 'text-rose-400' : 'text-slate-500'}`}>
+                  {d.momentumBonus.toFixed(0)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">تكرار</span>
+                <span className={`${d.streakBonus > 0 ? 'text-cyan-400' : 'text-slate-500'}`}>
+                  {d.streakBonus.toFixed(0)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">تسلسل</span>
+                <span className={`${d.sequenceBonus > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                  {d.sequenceBonus.toFixed(0)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">احتمال تكرار</span>
+                <span className={`${d.repeatRate >= 10 ? 'text-cyan-400' : 'text-slate-500'}`}>
+                  {d.repeatRate.toFixed(0)}%
+                </span>
               </div>
               <div className="flex justify-between pt-1.5 border-t border-white/5">
                 <span className="text-slate-500">النقاط</span>
