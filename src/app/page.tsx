@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { 
   RotateCcw, Trash2, Activity, Crown,
   Target, BarChart3, Upload,
-  ShieldAlert, Database, Cpu, Radio, Gauge, Scale, ArrowDownRight, TrendingUp, Flame, Repeat
+  ShieldAlert, Database, Cpu, Radio, Gauge, Scale, TrendingUp
 } from 'lucide-react';
 
 export type SymbolId = 
@@ -99,12 +99,10 @@ export default function HomePage() {
     if (submitting) return;
     setSubmitting(true);
 
-    const { deviations } = analyzeEnhancedDeviation(results);
-    const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
-    const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
-    const finalPicks = [...veggiePicks, ...animalPicks];
+    const { deviations } = analyzeConditionalProbability(results);
+    const finalPicks = getTopPicks(deviations);
+    
     const wasInPicks = finalPicks.some(p => p.symbol === symbolId);
-
     if (wasInPicks) {
       setWins(prev => prev + 1);
       setLastPickResult('win');
@@ -166,7 +164,7 @@ export default function HomePage() {
           <div className="absolute inset-5 border-r-2 border-cyan-400 rounded-full animate-spin [animation-duration:1.5s]"></div>
           <Cpu className="absolute inset-0 m-auto w-6 h-6 text-violet-400 animate-pulse" />
         </div>
-        <p className="text-slate-500 text-xs tracking-[0.3em] font-mono">SYSTEM INITIALIZATION</p>
+        <p className="text-slate-500 text-xs tracking-[0.3em] font-mono">SMART BETTOR INITIALIZING</p>
       </div>
     );
   }
@@ -184,7 +182,7 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-sm font-bold text-white tracking-wide">الراهن الذكي</h1>
-              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Statistical Reversion V6</p>
+              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Conditional Engine V7</p>
             </div>
           </div>
           
@@ -226,15 +224,22 @@ export default function HomePage() {
                 <div className="flex items-center justify-between mb-8">
                   <div className="flex items-center gap-3">
                     <Scale className="w-5 h-5 text-amber-400" />
-                    <span className="text-sm font-semibold text-white tracking-wide">محرك التوازن الإحصائي</span>
+                    <span className="text-sm font-semibold text-white tracking-wide">محرك الاحتمال الشرطي</span>
                   </div>
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION V6</span>
+                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">V7</span>
                 </div>
                 <StatisticalPredictor 
                   results={results} 
                   wins={wins} 
                   losses={losses} 
                   lastPickResult={lastPickResult} 
+                  onReset={() => {
+                    setWins(0);
+                    setLosses(0);
+                    setLastPickResult(null);
+                    localStorage.removeItem('smartBettor_wins');
+                    localStorage.removeItem('smartBettor_losses');
+                  }}
                 />
               </div>
             </div>
@@ -251,10 +256,10 @@ export default function HomePage() {
                   <p className="text-[10px] text-slate-500 mt-1">سجل النتيجة الجديدة لتحديث التحليل الفوري</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={handleUndo} disabled={submitting || results.length === 0} className="p-2 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.05] transition-all disabled:opacity-30 text-slate-400 hover:text-white"><RotateCcw className="w-4 h-4" /></button>
-                  <button onClick={handleClearAll} disabled={submitting || results.length === 0} className="p-2 rounded-lg bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 transition-all disabled:opacity-30 text-rose-400"><Trash2 className="w-4 h-4" /></button>
-                  <label className="p-2 rounded-lg bg-cyan-500/5 hover:bg-cyan-500/10 border border-cyan-500/10 transition-all cursor-pointer text-cyan-400">
-                    <Upload className="w-4 h-4" />
+                  <button onClick={handleUndo} disabled={submitting || results.length === 0} className="p-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.05] transition-all disabled:opacity-30 text-slate-400 hover:text-white"><RotateCcw className="w-5 h-5" /></button>
+                  <button onClick={handleClearAll} disabled={submitting || results.length === 0} className="p-2.5 rounded-lg bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 transition-all disabled:opacity-30 text-rose-400"><Trash2 className="w-5 h-5" /></button>
+                  <label className="p-2.5 rounded-lg bg-cyan-500/5 hover:bg-cyan-500/10 border border-cyan-500/10 transition-all cursor-pointer text-cyan-400">
+                    <Upload className="w-5 h-5" />
                     <input type="file" accept=".csv" className="hidden" onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (file) { 
@@ -355,7 +360,7 @@ export default function HomePage() {
       <footer className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 border-t border-white/[0.04] mt-6">
         <div className="flex items-center justify-between text-[10px] text-slate-600 font-mono tracking-widest uppercase">
           <span>Smart Bettor Intelligence</span>
-          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V6.0 · Reversion V6</span>
+          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V7.0 · Conditional</span>
         </div>
       </footer>
     </main>
@@ -454,215 +459,98 @@ function GapDisplay({ results }: { results: ResultRow[] }) {
 }
 
 // ==========================================
-// المحرك الإحصائي (Reversion V6)
+// المحرك الإحصائي (Conditional V7)
 // ==========================================
 
-interface EnhancedDeviationData {
+interface ConditionalData {
   symbol: SymbolId;
   actualPct: number;
   theoreticalPct: number;
   deviation: number;
   deviationScore: number;
   currentGap: number;
-  avgGap: number;
-  relativeGap: number;
-  gapScore: number;
-  momentumBonus: number;
-  streakBonus: number;
-  sequenceBonus: number;
-  repeatRate: number;
-  repeatBonus: number;
+  conditionalProb: number;
   totalScore: number;
-  doubleBonus: boolean;
 }
 
-function getRecentMomentum(results: ResultRow[]): { meatMomentum: number; vegMomentum: number } {
-  const recent = results.slice(-10);
-  if (recent.length === 0) return { meatMomentum: 0, vegMomentum: 0 };
-  const animals = recent.filter(r => SYMBOLS.find(s => s.id === r.symbol_id)?.type === 'animal').length;
-  const veggies = recent.filter(r => SYMBOLS.find(s => s.id === r.symbol_id)?.type === 'vegetable').length;
-  const meatMomentum = (animals / recent.length) * 100;
-  const vegMomentum = (veggies / recent.length) * 100;
-  return { meatMomentum, vegMomentum };
-}
-
-function getSequenceAnimalBonus(results: ResultRow[]): Record<string, number> {
-  const bonus: Record<string, number> = {};
-  SYMBOLS.forEach(s => { bonus[s.id] = 0; });
-
-  if (results.length < 10) return bonus;
-
-  const patternLength = 3;
-  const targetSeq = results.slice(-patternLength).map(r => r.symbol_id);
+// 👇 دالة جديدة: حساب الاحتمال الشرطي
+// بناءً على الغياب الحالي
+function getConditionalProbabilities(results: ResultRow[]): Record<string, number> {
+  const maxGap = 50; // أقصى غياب ممكن نأخذه بعين الاعتبار
+  const probabilities: Record<string, number> = {};
   
-  const animalMatches: Record<string, number> = {};
-  let totalMatches = 0;
-
-  for (let i = 0; i <= results.length - patternLength - 1; i++) {
-    let isMatch = true;
-    for (let j = 0; j < patternLength; j++) {
-      if (results[i + j].symbol_id !== targetSeq[j]) {
-        isMatch = false;
-        break;
-      }
-    }
-    
-    if (isMatch) {
-      const nextSymbol = results[i + patternLength].symbol_id;
-      const symInfo = SYMBOLS.find(s => s.id === nextSymbol);
-      if (symInfo?.type === 'animal') {
-        animalMatches[nextSymbol] = (animalMatches[nextSymbol] || 0) + 1;
-        totalMatches++;
-      }
-    }
-  }
-
-  if (totalMatches >= 2) {
-    Object.entries(animalMatches).forEach(([symId, count]) => {
-      bonus[symId] = (count / totalMatches) * 30;
-    });
-  }
-
-  return bonus;
-}
-
-function getRepeatRates(results: ResultRow[]): Record<string, number> {
-  const appearanceCounts: Record<string, number> = {};
-  const repeatCounts: Record<string, number> = {};
-  SYMBOLS.forEach(s => { appearanceCounts[s.id] = 0; repeatCounts[s.id] = 0; });
-
-  for (let i = 0; i < results.length - 1; i++) {
-    const current = results[i].symbol_id;
-    const next = results[i + 1].symbol_id;
-    appearanceCounts[current] = (appearanceCounts[current] || 0) + 1;
-    if (current === next) {
-      repeatCounts[current] = (repeatCounts[current] || 0) + 1;
-    }
-  }
-
-  const repeatRates: Record<string, number> = {};
   SYMBOLS.forEach(s => {
-    repeatRates[s.id] = appearanceCounts[s.id] > 0
-      ? (repeatCounts[s.id] / appearanceCounts[s.id]) * 100
-      : 0;
+    // 1. حساب الغياب الحالي
+    let currentGap = 0;
+    for (let i = results.length - 1; i >= 0; i--) {
+      if (results[i].symbol_id === s.id) break;
+      currentGap++;
+    }
+
+    // 2. نحسب كم مرة ظهر هذا الرمز بعد غياب مشابه (من maxGap إلى currentGap)
+    let similarGapCount = 0;
+    let appearedAfterCount = 0;
+    
+    for (let i = 1; i < results.length; i++) {
+      // نحسب الغياب قبل كل ظهور
+      let gapBefore = 0;
+      for (let j = i - 1; j >= 0; j--) {
+        if (results[j].symbol_id === s.id) break;
+        gapBefore++;
+      }
+      
+      // إذا الغياب كان قريب من الغياب الحالي (بفارق 2)
+      if (Math.abs(gapBefore - currentGap) <= 2) {
+        similarGapCount++;
+        if (results[i].symbol_id === s.id) {
+          appearedAfterCount++;
+        }
+      }
+    }
+
+    // 3. الاحتمال الشرطي = (عدد الظهور بعد غياب مشابه / عدد المرات اللي كان فيها غياب مشابه)
+    // إذا ما في حالات مشابهة، نستخدم الاحتمال النظري
+    if (similarGapCount >= 3) {
+      probabilities[s.id] = (appearedAfterCount / similarGapCount) * 100;
+    } else {
+      probabilities[s.id] = THEORETICAL_WEIGHTS[s.id];
+    }
   });
 
-  return repeatRates;
+  return probabilities;
 }
 
-function analyzeEnhancedDeviation(results: ResultRow[]): {
-  deviations: EnhancedDeviationData[];
+function analyzeConditionalProbability(results: ResultRow[]): {
+  deviations: ConditionalData[];
   windowSize: number;
-  momentum: { meatMomentum: number; vegMomentum: number };
 } {
-  if (results.length < 5) {
-    return { deviations: [], windowSize: 0, momentum: { meatMomentum: 0, vegMomentum: 0 } };
+  if (results.length < 10) {
+    return { deviations: [], windowSize: 0 };
   }
 
   const windowSize = results.length;
   const window = results.slice(-windowSize);
-  const momentum = getRecentMomentum(results);
-  const sequenceBonus = getSequenceAnimalBonus(results);
-  const repeatRates = getRepeatRates(results);
 
   const counts: Record<string, number> = {};
   SYMBOLS.forEach(s => { counts[s.id] = 0; });
   window.forEach(r => { counts[r.symbol_id]++; });
 
-  const currentGaps: Record<string, number> = {};
-  SYMBOLS.forEach(s => {
-    let gap = 0;
-    for (let i = results.length - 1; i >= 0; i--) {
-      if (results[i].symbol_id === s.id) break;
-      gap++;
-    }
-    currentGaps[s.id] = gap;
-  });
+  const conditionalProbs = getConditionalProbabilities(results);
 
-  const avgGaps: Record<string, number> = {};
-  SYMBOLS.forEach(s => {
-    const indexes: number[] = [];
-    results.forEach((r, i) => { if (r.symbol_id === s.id) indexes.push(i); });
-    if (indexes.length < 2) {
-      avgGaps[s.id] = 10;
-    } else {
-      let sum = 0;
-      for (let i = 1; i < indexes.length; i++) sum += indexes[i] - indexes[i - 1];
-      avgGaps[s.id] = sum / (indexes.length - 1);
-    }
-  });
-
-  const streaks: Record<string, number> = {};
-  SYMBOLS.forEach(s => { streaks[s.id] = 0; });
-  results.forEach((r, index) => {
-    const recencyWeight = 1 + (index / results.length) * 5; 
-    streaks[r.symbol_id] = (streaks[r.symbol_id] || 0) + recencyWeight;
-  });
-
-  const maxStreak = Math.max(...Object.values(streaks), 1);
-  Object.keys(streaks).forEach(k => {
-    streaks[k] = (streaks[k] / maxStreak) * 15;
-  });
-
-  const deviations: EnhancedDeviationData[] = SYMBOLS.map(sym => {
+  const deviations: ConditionalData[] = SYMBOLS.map(sym => {
     const actualCount = counts[sym.id];
     const actualPct = (actualCount / windowSize) * 100;
     const theoreticalPct = THEORETICAL_WEIGHTS[sym.id];
     const deviation = actualPct - theoreticalPct;
     const normalizedDev = -deviation;
     const deviationScore = Math.max(0, Math.min(100, normalizedDev * 2 + 50));
-    const currentGap = currentGaps[sym.id];
-    const avgGap = avgGaps[sym.id];
-    const relativeGap = avgGap > 0 ? currentGap / avgGap : 0;
-    const gapScore = Math.min(100, relativeGap * 50);
-
-    let momentumBonus = 0;
-    if (sym.type === 'vegetable' && momentum.meatMomentum > 30) {
-      momentumBonus = (momentum.meatMomentum - 30) * 0.5; 
-    } else if (sym.type === 'animal' && momentum.vegMomentum > 70) {
-      momentumBonus = (momentum.vegMomentum - 70) * 0.5;
-    }
-
-    const streakValue = streaks[sym.id] || 0;
-    let streakBonus = 0;
-    if (streakValue >= 12) streakBonus = 15;
-    else if (streakValue >= 8) streakBonus = 10;
-    else if (streakValue >= 4) streakBonus = 5;
-
-    const seqBonusForThisSymbol = sequenceBonus[sym.id] || 0;
-
-    const repeatRate = repeatRates[sym.id] || 0;
-    let repeatBonus = 0;
-    if (repeatRate >= 30) repeatBonus = 20;
-    else if (repeatRate >= 20) repeatBonus = 15;
-    else if (repeatRate >= 10) repeatBonus = 8;
-    else if (repeatRate >= 5) repeatBonus = 4;
-
-    const doubleBonus = deviation < 0 && relativeGap > 1.2;
     
-    // 👇 توزيع الأوزان (V6): تركيز أكبر على الغياب والتسلسل
-    let totalScore = 
-      (deviationScore * 0.15) + 
-      (gapScore * 0.35) + 
-      (momentumBonus * 0.10) + 
-      (streakBonus * 0.05) + 
-      (seqBonusForThisSymbol * 0.20) +
-      (repeatBonus * 0.15);
-    
-    // مكافأة إضافية للغياب العالي
-    if (relativeGap > 2.0) totalScore += 15;
-    else if (relativeGap > 1.5) totalScore += 8;
-    if (doubleBonus) totalScore += 10;
-
-    // 👇 دفعة للحيوانات (عشان نضمن 3+2 دايماً)
-    if (sym.type === 'animal') {
-      totalScore += 10; 
-    }
-
-    // إذا اللحوم مش سخنة والحيوان غيابه ضعيف، نخفضه
-    if (sym.type === 'animal' && relativeGap < 1.2 && streakValue < 2 && seqBonusForThisSymbol === 0 && repeatRate < 10) {
-      totalScore = totalScore * 0.5;
-    }
+    // 👇 النقاط النهائية: 50% احتمال شرطي + 30% انحراف + 20% نظري
+    const conditionalProb = conditionalProbs[sym.id] || 0;
+    const totalScore = 
+      (conditionalProb * 0.50) + 
+      (deviationScore * 0.30) + 
+      (theoreticalPct * 0.20);
 
     return {
       symbol: sym.id,
@@ -670,56 +558,56 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
       theoreticalPct,
       deviation,
       deviationScore,
-      currentGap,
-      avgGap,
-      relativeGap,
-      gapScore,
-      momentumBonus,
-      streakBonus,
-      sequenceBonus: seqBonusForThisSymbol,
-      repeatRate,
-      repeatBonus,
+      currentGap: (() => {
+        let gap = 0;
+        for (let i = results.length - 1; i >= 0; i--) {
+          if (results[i].symbol_id === sym.id) break;
+          gap++;
+        }
+        return gap;
+      })(),
+      conditionalProb,
       totalScore: Math.min(100, totalScore),
-      doubleBonus,
     };
   }).sort((a, b) => b.totalScore - a.totalScore);
 
-  return { deviations, windowSize, momentum };
+  return { deviations, windowSize };
+}
+
+// 👇 دالة جديدة: اختيار أفضل 5 رموز (بدون فلتر إجباري)
+function getTopPicks(deviations: ConditionalData[]): ConditionalData[] {
+  // نختار أفضل 5 رموز عامة
+  return deviations.slice(0, 5);
 }
 
 // ==========================================
-// مكون التوقعات (Reversion V6)
+// مكون التوقعات (Conditional V7)
 // ==========================================
 function StatisticalPredictor({ 
   results, 
   wins, 
   losses, 
-  lastPickResult 
+  lastPickResult,
+  onReset
 }: { 
   results: ResultRow[]; 
   wins: number; 
   losses: number; 
-  lastPickResult: 'win' | 'loss' | null 
+  lastPickResult: 'win' | 'loss' | null;
+  onReset: () => void;
 }) {
-  if (results.length < 5) {
+  if (results.length < 10) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
         <ShieldAlert className="w-8 h-8 text-amber-500/50 mb-3" />
         <p className="text-sm text-slate-400 font-medium">بحاجة إلى سجل أكبر</p>
-        <p className="text-[10px] text-slate-600 mt-1 font-mono">MINIMUM 5 RESULTS</p>
+        <p className="text-[10px] text-slate-600 mt-1 font-mono">MINIMUM 10 RESULTS</p>
       </div>
     );
   }
 
-  const { deviations, windowSize, momentum } = analyzeEnhancedDeviation(results);
-
-  const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
-  const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
-  const finalPicks = [...veggiePicks, ...animalPicks].sort((a, b) => b.totalScore - a.totalScore);
-
-  const doubleBonusCount = finalPicks.filter(d => d.doubleBonus).length;
-  const repeatCandidatesCount = finalPicks.filter(d => d.repeatBonus > 0).length;
-  const isMeatHot = momentum.meatMomentum > 30;
+  const { deviations } = analyzeConditionalProbability(results);
+  const finalPicks = getTopPicks(deviations);
 
   const totalBets = wins + losses;
   const winRate = totalBets > 0 ? (wins / totalBets) * 100 : 0;
@@ -728,55 +616,43 @@ function StatisticalPredictor({
     <div className="flex-1 flex flex-col justify-between gap-5">
       <div>
         <div className="flex items-center justify-between mb-4">
-          <span className="text-[10px] text-slate-500 font-mono uppercase">Statistical Reversion V6</span>
-          <span className="text-[10px] font-mono text-cyan-400">Window: {windowSize}</span>
+          <span className="text-[10px] text-slate-500 font-mono uppercase">Conditional V7</span>
+          <span className="text-[10px] font-mono text-cyan-400">Top 5</span>
         </div>
 
-        <div className={`mb-3 p-2 rounded-lg flex items-center justify-between ${
-          isMeatHot ? 'bg-rose-500/10 border border-rose-500/20' : 'bg-emerald-500/10 border border-emerald-500/20'
-        }`}>
-          <div className="flex items-center gap-2">
-            <Flame className={`w-3.5 h-3.5 ${isMeatHot ? 'text-rose-400' : 'text-emerald-400'}`} />
-            <span className={`text-[10px] ${isMeatHot ? 'text-rose-300' : 'text-emerald-300'}`}>
-              {isMeatHot ? 'اللحوم سخنة' : 'الخضار مسيطرة'}
-            </span>
-          </div>
-          <span className={`text-[10px] font-mono ${isMeatHot ? 'text-rose-400' : 'text-emerald-400'}`}>
-            {isMeatHot ? `${momentum.meatMomentum.toFixed(0)}%` : `${momentum.vegMomentum.toFixed(0)}%`}
+        <div className="mb-3 p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-2">
+          <TrendingUp className="w-3.5 h-3.5 text-indigo-400" />
+          <span className="text-[10px] text-indigo-300">
+            يعتمد على الاحتمال الشرطي (الغياب) + الانحراف + النظري
           </span>
         </div>
-        
-        {doubleBonusCount > 0 && (
-          <div className="mb-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
-            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-[10px] text-emerald-300">
-              {doubleBonusCount} رموز إشارة مزدوجة (انحراف + غياب)
-            </span>
-          </div>
-        )}
 
-        {repeatCandidatesCount > 0 && (
-          <div className="mb-4 p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center gap-2">
-            <Repeat className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-[10px] text-cyan-300">
-              {repeatCandidatesCount} رموز لديها سجل تكرار
-            </span>
+        <div className="relative mb-4">
+          <div className="grid grid-cols-3 gap-2 mt-4">
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 text-center">
+              <div className="text-[9px] text-emerald-300 mb-1">رابح</div>
+              <div className="text-lg font-bold text-emerald-400 font-mono">{wins}</div>
+            </div>
+            <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-2 text-center">
+              <div className="text-[9px] text-rose-300 mb-1">خاسر</div>
+              <div className="text-lg font-bold text-rose-400 font-mono">{losses}</div>
+            </div>
+            <div className="bg-white/[0.02] border border-white/10 rounded-lg p-2 text-center">
+              <div className="text-[9px] text-slate-400 mb-1">نسبة النجاح</div>
+              <div className="text-lg font-bold text-white font-mono">{winRate.toFixed(1)}%</div>
+            </div>
           </div>
-        )}
 
-        <div className="grid grid-cols-3 gap-2 mt-4 mb-4">
-          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 text-center">
-            <div className="text-[9px] text-emerald-300 mb-1">رابح</div>
-            <div className="text-lg font-bold text-emerald-400 font-mono">{wins}</div>
-          </div>
-          <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-2 text-center">
-            <div className="text-[9px] text-rose-300 mb-1">خاسر</div>
-            <div className="text-lg font-bold text-rose-400 font-mono">{losses}</div>
-          </div>
-          <div className="bg-white/[0.02] border border-white/10 rounded-lg p-2 text-center">
-            <div className="text-[9px] text-slate-400 mb-1">نسبة النجاح</div>
-            <div className="text-lg font-bold text-white font-mono">{winRate.toFixed(1)}%</div>
-          </div>
+          <button
+            onClick={() => {
+              if (!confirm('هل أنت متأكد من تصفير إحصائيات الرابح والخاسر؟')) return;
+              onReset();
+            }}
+            className="absolute -top-6 left-0 text-[9px] text-slate-500 hover:text-rose-400 transition-colors flex items-center gap-1"
+            title="تصفير الإحصائيات"
+          >
+            <RotateCcw className="w-3 h-3" /> تصفير
+          </button>
         </div>
 
         {lastPickResult && (
@@ -794,25 +670,15 @@ function StatisticalPredictor({
             const sym = SYMBOLS.find(s => s.id === p.symbol)!;
             return (
               <div key={p.symbol} className={`relative flex flex-col items-center justify-center p-3 rounded-xl border transition-all hover:-translate-y-1 ${
-                p.repeatBonus >= 15 ? 'bg-cyan-500/10 border-cyan-500/40' :
-                p.momentumBonus > 0 ? 'bg-rose-500/10 border-rose-500/40' :
-                p.doubleBonus ? 'bg-emerald-500/10 border-emerald-500/40' :
+                p.totalScore > 60 ? 'bg-emerald-500/10 border-emerald-500/40' :
+                p.totalScore > 40 ? 'bg-amber-500/10 border-amber-500/40' :
                 i === 0 ? 'bg-violet-500/10 border-violet-500/30' : 
                 'bg-white/[0.02] border-white/5'
               }`}>
-                {(p.momentumBonus > 0 || p.doubleBonus || p.repeatBonus >= 15) && (
-                  <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] ${
-                    p.repeatBonus >= 15 ? 'bg-cyan-500' :
-                    p.momentumBonus > 0 ? 'bg-rose-500' : 'bg-emerald-500'
-                  }`}>
-                    {p.repeatBonus >= 15 ? '🔄' : p.momentumBonus > 0 ? '🔥' : '⚡'}
-                  </div>
-                )}
                 <div className="text-2xl mb-1">{sym.emoji}</div>
-                <div className="text-sm font-bold font-mono text-white">{p.totalScore.toFixed(0)}</div>
+                <div className="text-sm font-bold font-mono text-white">{p.totalScore.toFixed(0)}%</div>
                 <div className="text-[9px] text-slate-500">
-                  <ArrowDownRight className={`w-3 h-3 inline ${p.deviation < 0 ? 'text-emerald-400' : 'text-rose-400'}`} />
-                  {p.deviation.toFixed(1)}%
+                  {p.conditionalProb.toFixed(0)}% شرطي
                 </div>
               </div>
             );
@@ -830,14 +696,13 @@ function StatisticalPredictor({
               <span className="text-slate-400 w-12">{sym.name}</span>
               <div className="flex-1 h-1 bg-white/[0.03] rounded-full overflow-hidden">
                 <div className={`h-full rounded-full ${
-                  p.repeatBonus >= 15 ? 'bg-gradient-to-r from-cyan-500 to-blue-400' :
-                  p.momentumBonus > 0 ? 'bg-gradient-to-r from-rose-500 to-orange-400' :
-                  p.doubleBonus ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' : 
+                  p.totalScore > 60 ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' :
+                  p.totalScore > 40 ? 'bg-gradient-to-r from-amber-500 to-orange-400' : 
                   'bg-gradient-to-r from-violet-500 to-cyan-400'
                 }`} style={{ width: `${p.totalScore}%` }} />
               </div>
               <span className="text-slate-500 font-mono w-16 text-left">
-                {p.actualPct.toFixed(0)}% / {p.theoreticalPct.toFixed(0)}%
+                {p.currentGap} غياب
               </span>
             </div>
           );
@@ -848,14 +713,14 @@ function StatisticalPredictor({
 }
 
 // ==========================================
-// لوحة الانحراف (Reversion V6)
+// لوحة الانحراف (Conditional V7)
 // ==========================================
 function DeviationPanel({ results }: { results: ResultRow[] }) {
   if (results.length < 10) {
     return <p className="text-xs text-slate-600 text-center py-6">بيانات غير كافية للتحليل الإحصائي</p>;
   }
 
-  const { deviations } = analyzeEnhancedDeviation(results);
+  const { deviations } = analyzeConditionalProbability(results);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -864,18 +729,13 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
         const isUnder = d.deviation < 0;
         return (
           <div key={d.symbol} className={`rounded-xl border bg-white/[0.02] p-4 ${
-            d.repeatBonus >= 15 ? 'border-cyan-500/30' :
-            d.momentumBonus > 0 ? 'border-rose-500/30' :
-            d.doubleBonus ? 'border-emerald-500/30' : 'border-white/[0.05]'
+            d.conditionalProb > 50 ? 'border-emerald-500/30' :
+            d.conditionalProb > 30 ? 'border-amber-500/30' : 'border-white/[0.05]'
           }`}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="text-xl">{sym.emoji}</span>
                 <span className="text-xs text-slate-300">{sym.name}</span>
-                {d.repeatBonus >= 15 && <span className="text-[10px]">🔄</span>}
-                {d.momentumBonus > 0 && <span className="text-[10px]">🔥</span>}
-                {d.doubleBonus && !d.momentumBonus && <span className="text-[10px]">⚡</span>}
-                {d.sequenceBonus > 0 && <span className="text-[10px]">🎯</span>}
               </div>
               <span className={`text-[10px] font-mono font-bold ${isUnder ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {d.deviation > 0 ? '+' : ''}{d.deviation.toFixed(1)}%
@@ -893,31 +753,11 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">غياب</span>
-                <span className="text-slate-300">{d.currentGap} / {d.avgGap.toFixed(1)}</span>
+                <span className="text-slate-300">{d.currentGap}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">زخم</span>
-                <span className={`${d.momentumBonus > 0 ? 'text-rose-400' : 'text-slate-500'}`}>
-                  {d.momentumBonus.toFixed(0)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">تكرار</span>
-                <span className={`${d.streakBonus > 0 ? 'text-cyan-400' : 'text-slate-500'}`}>
-                  {d.streakBonus.toFixed(0)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">تسلسل</span>
-                <span className={`${d.sequenceBonus > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
-                  {d.sequenceBonus.toFixed(0)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">احتمال تكرار</span>
-                <span className={`${d.repeatRate >= 10 ? 'text-cyan-400' : 'text-slate-500'}`}>
-                  {d.repeatRate.toFixed(0)}%
-                </span>
+                <span className="text-slate-500">شرطي</span>
+                <span className="text-indigo-400">{d.conditionalProb.toFixed(0)}%</span>
               </div>
               <div className="flex justify-between pt-1.5 border-t border-white/5">
                 <span className="text-slate-500">النقاط</span>
@@ -927,9 +767,8 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
 
             <div className="mt-2 h-1 bg-white/[0.03] rounded-full overflow-hidden">
               <div className={`h-full rounded-full ${
-                d.repeatBonus >= 15 ? 'bg-gradient-to-r from-cyan-500 to-blue-400' :
-                d.momentumBonus > 0 ? 'bg-gradient-to-r from-rose-500 to-orange-400' :
-                d.doubleBonus ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' : 
+                d.conditionalProb > 50 ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' :
+                d.conditionalProb > 30 ? 'bg-gradient-to-r from-amber-500 to-orange-400' : 
                 'bg-gradient-to-r from-violet-500 to-cyan-400'
               }`} style={{ width: `${d.totalScore}%` }} />
             </div>
