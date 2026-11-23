@@ -95,26 +95,71 @@ export default function HomePage() {
     localStorage.setItem('smartBettor_losses', losses.toString());
   }, [wins, losses]);
 
+  // 👇 دالة جديدة: التوقع بناءً على الأنماط أولاً (4، 3، 2)
+  const predictBasedOnPatterns = useCallback((results: ResultRow[]): { symbolId: SymbolId; patternLength: number; confidence: number }[] => {
+    if (results.length < 5) return [];
+
+    // نجرب الأطوال: 4، ثم 3، ثم 2
+    const patternLengths = [4, 3, 2];
+    
+    for (const len of patternLengths) {
+      if (results.length < len + 1) continue;
+
+      const targetSeq = results.slice(-len).map(r => r.symbol_id);
+      const matches: Record<string, number> = {};
+      let totalMatches = 0;
+
+      for (let i = 0; i <= results.length - len - 1; i++) {
+        let isMatch = true;
+        for (let j = 0; j < len; j++) {
+          if (results[i + j].symbol_id !== targetSeq[j]) {
+            isMatch = false;
+            break;
+          }
+        }
+        
+        if (isMatch) {
+          const nextSymbol = results[i + len].symbol_id;
+          matches[nextSymbol] = (matches[nextSymbol] || 0) + 1;
+          totalMatches++;
+        }
+      }
+
+      if (totalMatches >= 2) {
+        // نرجع الرموز المتوقعة مع نسبة الثقة
+        return Object.entries(matches)
+          .map(([symbolId, count]) => ({
+            symbolId: symbolId as SymbolId,
+            patternLength: len,
+            confidence: (count / totalMatches) * 100,
+          }))
+          .sort((a, b) => b.confidence - a.confidence);
+      }
+    }
+
+    return [];
+  }, []);
+
   const handleAddSymbol = useCallback(async (symbolId: SymbolId) => {
     if (submitting) return;
     setSubmitting(true);
 
-    const { deviations } = analyzeEnhancedDeviation(results);
-    const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
+    // 👇 التوقع بناءً على الأنماط
+    const patternPredictions = predictBasedOnPatterns(results);
     
-    // 👇 اختيار اللحوم بناءً على الأنماط (مثل ميكو سبين) - ولكن نأخذ 2 فقط
-    const animalDeviations = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal');
-    const animalsWithSequence = animalDeviations.filter(d => d.sequenceBonus > 0);
-    
-    let animalPicks;
-    if (animalsWithSequence.length >= 2) {
-      animalPicks = animalsWithSequence.sort((a, b) => b.totalScore - a.totalScore).slice(0, 2);
-    } else {
-      animalPicks = animalDeviations.sort((a, b) => b.totalScore - a.totalScore).slice(0, 2);
-    }
+    // نختار 3 خضار و 2 لحوم من التوقعات
+    const predictedVeggies = patternPredictions.filter(p => {
+      const sym = SYMBOLS.find(s => s.id === p.symbolId);
+      return sym?.type === 'vegetable';
+    }).slice(0, 3);
 
-    const finalPicks = [...veggiePicks, ...animalPicks];
-    const wasInPicks = finalPicks.some(p => p.symbol === symbolId);
+    const predictedAnimals = patternPredictions.filter(p => {
+      const sym = SYMBOLS.find(s => s.id === p.symbolId);
+      return sym?.type === 'animal';
+    }).slice(0, 2);
+
+    const finalPicks = [...predictedVeggies, ...predictedAnimals];
+    const wasInPicks = finalPicks.some(p => p.symbolId === symbolId);
 
     if (wasInPicks) {
       setWins(prev => prev + 1);
@@ -137,7 +182,7 @@ export default function HomePage() {
       setError('تعذر إضافة النتيجة'); 
     }
     finally { setSubmitting(false); }
-  }, [submitting, fetchResults, results]);
+  }, [submitting, fetchResults, results, predictBasedOnPatterns]);
 
   const handleUndo = useCallback(async () => {
     if (submitting || results.length === 0) return;
@@ -237,9 +282,9 @@ export default function HomePage() {
                 <div className="flex items-center justify-between mb-8">
                   <div className="flex items-center gap-3">
                     <Scale className="w-5 h-5 text-amber-400" />
-                    <span className="text-sm font-semibold text-white tracking-wide">محرك التوازن الإحصائي</span>
+                    <span className="text-sm font-semibold text-white tracking-wide">محرك الأنماط التسلسلية</span>
                   </div>
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">REVERSION V16</span>
+                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">PATTERN V1</span>
                 </div>
                 <StatisticalPredictor 
                   results={results} 
@@ -253,6 +298,7 @@ export default function HomePage() {
                     localStorage.removeItem('smartBettor_wins');
                     localStorage.removeItem('smartBettor_losses');
                   }}
+                  predictBasedOnPatterns={predictBasedOnPatterns}
                 />
               </div>
             </div>
@@ -373,7 +419,7 @@ export default function HomePage() {
       <footer className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 border-t border-white/[0.04] mt-6">
         <div className="flex items-center justify-between text-[10px] text-slate-600 font-mono tracking-widest uppercase">
           <span>Smart Bettor Intelligence</span>
-          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V16.0</span>
+          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V1.0 (Pattern)</span>
         </div>
       </footer>
     </main>
@@ -504,48 +550,6 @@ function getRecentMomentum(results: ResultRow[]): { meatMomentum: number; vegMom
   return { meatMomentum, vegMomentum };
 }
 
-function getSequencePatternBonus(results: ResultRow[]): Record<string, number> {
-  const bonus: Record<string, number> = {};
-  SYMBOLS.forEach(s => { bonus[s.id] = 0; });
-
-  if (results.length < 5) return bonus;
-
-  const patternLengths = [3, 2]; 
-  
-  for (const len of patternLengths) {
-    if (results.length < len + 1) continue;
-
-    const targetSeq = results.slice(-len).map(r => r.symbol_id);
-    const matches: Record<string, number> = {};
-    let totalMatches = 0;
-
-    for (let i = 0; i <= results.length - len - 1; i++) {
-      let isMatch = true;
-      for (let j = 0; j < len; j++) {
-        if (results[i + j].symbol_id !== targetSeq[j]) {
-          isMatch = false;
-          break;
-        }
-      }
-      
-      if (isMatch) {
-        const nextSymbol = results[i + len].symbol_id;
-        matches[nextSymbol] = (matches[nextSymbol] || 0) + 1;
-        totalMatches++;
-      }
-    }
-
-    if (totalMatches >= 2) {
-      Object.entries(matches).forEach(([symId, count]) => {
-        bonus[symId] = (count / totalMatches) * 50;
-      });
-      return bonus;
-    }
-  }
-
-  return bonus;
-}
-
 function getRepeatRates(results: ResultRow[]): Record<string, number> {
   const appearanceCounts: Record<string, number> = {};
   const repeatCounts: Record<string, number> = {};
@@ -582,7 +586,6 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
   const windowSize = results.length;
   const window = results.slice(-windowSize);
   const momentum = getRecentMomentum(results);
-  const sequenceBonus = getSequencePatternBonus(results);
   const repeatRates = getRepeatRates(results);
 
   const counts: Record<string, number> = {};
@@ -649,8 +652,6 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     else if (streakValue >= 8) streakBonus = 10;
     else if (streakValue >= 4) streakBonus = 5;
 
-    const seqBonusForThisSymbol = sequenceBonus[sym.id] || 0;
-
     const repeatRate = repeatRates[sym.id] || 0;
     let repeatBonus = 0;
     if (repeatRate >= 30) repeatBonus = 20;
@@ -668,7 +669,6 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
         (gapScore * 0.20) + 
         (momentumBonus * 0.10) + 
         (streakBonus * 0.05) + 
-        (seqBonusForThisSymbol * 0.35) + 
         (repeatBonus * 0.20);
       
       if (relativeGap >= 1.5) totalScore += 6;
@@ -679,7 +679,6 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
         (gapScore * 0.15) + 
         (momentumBonus * 0.05) + 
         (streakBonus * 0.10) + 
-        (seqBonusForThisSymbol * 0.45) + 
         (repeatBonus * 0.20);
       
       if (relativeGap >= 1.5) totalScore += 5;
@@ -697,7 +696,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
     if (doubleBonus) totalScore += 5;
 
     if (sym.type === 'animal') {
-      if (relativeGap < 0.8 && streakValue < 1 && seqBonusForThisSymbol === 0 && repeatRate < 3) {
+      if (relativeGap < 0.8 && streakValue < 1 && repeatRate < 3) {
         totalScore = totalScore * 0.5;
       }
     }
@@ -714,7 +713,7 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
       gapScore,
       momentumBonus,
       streakBonus,
-      sequenceBonus: seqBonusForThisSymbol,
+      sequenceBonus: 0,
       repeatRate,
       repeatBonus,
       totalScore: Math.min(100, totalScore),
@@ -726,20 +725,22 @@ function analyzeEnhancedDeviation(results: ResultRow[]): {
 }
 
 // ==========================================
-// مكون التوقعات (Reversion V16)
+// مكون التوقعات (Pattern V1)
 // ==========================================
 function StatisticalPredictor({ 
   results, 
   wins, 
   losses, 
   lastPickResult,
-  onReset
+  onReset,
+  predictBasedOnPatterns
 }: { 
   results: ResultRow[]; 
   wins: number; 
   losses: number; 
   lastPickResult: 'win' | 'loss' | null;
   onReset: () => void;
+  predictBasedOnPatterns: (results: ResultRow[]) => { symbolId: SymbolId; patternLength: number; confidence: number }[];
 }) {
   if (results.length < 5) {
     return (
@@ -751,26 +752,20 @@ function StatisticalPredictor({
     );
   }
 
-  const { deviations, windowSize, momentum } = analyzeEnhancedDeviation(results);
+  const patternPredictions = predictBasedOnPatterns(results);
+  const usedPatternLength = patternPredictions.length > 0 ? patternPredictions[0].patternLength : 0;
 
-  const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
+  const predictedVeggies = patternPredictions.filter(p => {
+    const sym = SYMBOLS.find(s => s.id === p.symbolId);
+    return sym?.type === 'vegetable';
+  }).slice(0, 3);
 
-  // 👇 اختيار اللحوم بناءً على الأنماط أولاً (مثل ميكو سبين) - ولكن نأخذ 2 فقط
-  const animalDeviations = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal');
-  const animalsWithSequence = animalDeviations.filter(d => d.sequenceBonus > 0);
-  
-  let animalPicks;
-  if (animalsWithSequence.length >= 2) {
-    animalPicks = animalsWithSequence.sort((a, b) => b.totalScore - a.totalScore).slice(0, 2);
-  } else {
-    animalPicks = animalDeviations.sort((a, b) => b.totalScore - a.totalScore).slice(0, 2);
-  }
+  const predictedAnimals = patternPredictions.filter(p => {
+    const sym = SYMBOLS.find(s => s.id === p.symbolId);
+    return sym?.type === 'animal';
+  }).slice(0, 2);
 
-  const finalPicks = [...veggiePicks, ...animalPicks].sort((a, b) => b.totalScore - a.totalScore);
-
-  const doubleBonusCount = finalPicks.filter(d => d.doubleBonus).length;
-  const repeatCandidatesCount = finalPicks.filter(d => d.repeatBonus > 0).length;
-  const isMeatHot = momentum.meatMomentum > 30;
+  const finalPicks = [...predictedVeggies, ...predictedAnimals];
 
   const totalBets = wins + losses;
   const winRate = totalBets > 0 ? (wins / totalBets) * 100 : 0;
@@ -779,38 +774,17 @@ function StatisticalPredictor({
     <div className="flex-1 flex flex-col justify-between gap-5">
       <div>
         <div className="flex items-center justify-between mb-4">
-          <span className="text-[10px] text-slate-500 font-mono uppercase">Smart Bettor V16</span>
-          <span className="text-[10px] font-mono text-cyan-400">Window: {windowSize}</span>
-        </div>
-
-        <div className={`mb-3 p-2 rounded-lg flex items-center justify-between ${
-          isMeatHot ? 'bg-rose-500/10 border border-rose-500/20' : 'bg-emerald-500/10 border border-emerald-500/20'
-        }`}>
-          <div className="flex items-center gap-2">
-            <Flame className={`w-3.5 h-3.5 ${isMeatHot ? 'text-rose-400' : 'text-emerald-400'}`} />
-            <span className={`text-[10px] ${isMeatHot ? 'text-rose-300' : 'text-emerald-300'}`}>
-              {isMeatHot ? 'اللحوم سخنة' : 'الخضار مسيطرة'}
-            </span>
-          </div>
-          <span className={`text-[10px] font-mono ${isMeatHot ? 'text-rose-400' : 'text-emerald-400'}`}>
-            {isMeatHot ? `${momentum.meatMomentum.toFixed(0)}%` : `${momentum.vegMomentum.toFixed(0)}%`}
+          <span className="text-[10px] text-slate-500 font-mono uppercase">Pattern V1</span>
+          <span className="text-[10px] font-mono text-cyan-400">
+            {usedPatternLength > 0 ? `نمط ${usedPatternLength} رموز` : 'لا يوجد نمط'}
           </span>
         </div>
-        
-        {doubleBonusCount > 0 && (
-          <div className="mb-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
-            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-[10px] text-emerald-300">
-              {doubleBonusCount} رموز إشارة مزدوجة (انحراف + غياب)
-            </span>
-          </div>
-        )}
 
-        {repeatCandidatesCount > 0 && (
-          <div className="mb-4 p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center gap-2">
-            <Repeat className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-[10px] text-cyan-300">
-              {repeatCandidatesCount} رموز لديها سجل تكرار
+        {usedPatternLength > 0 && (
+          <div className="mb-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center gap-2">
+            <Target className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-[10px] text-amber-300">
+              تم العثور على نمط متكرر بطول {usedPatternLength} رموز
             </span>
           </div>
         )}
@@ -857,28 +831,18 @@ function StatisticalPredictor({
 
         <div className="grid grid-cols-5 gap-2">
           {finalPicks.map((p, i) => {
-            const sym = SYMBOLS.find(s => s.id === p.symbol)!;
+            const sym = SYMBOLS.find(s => s.id === p.symbolId)!;
             return (
-              <div key={p.symbol} className={`relative flex flex-col items-center justify-center p-3 rounded-xl border transition-all hover:-translate-y-1 ${
-                p.repeatBonus >= 15 ? 'bg-cyan-500/10 border-cyan-500/40' :
-                p.momentumBonus > 0 ? 'bg-rose-500/10 border-rose-500/40' :
-                p.doubleBonus ? 'bg-emerald-500/10 border-emerald-500/40' :
+              <div key={p.symbolId} className={`relative flex flex-col items-center justify-center p-3 rounded-xl border transition-all hover:-translate-y-1 ${
+                p.confidence > 40 ? 'bg-emerald-500/10 border-emerald-500/40' :
+                p.confidence > 20 ? 'bg-amber-500/10 border-amber-500/40' :
                 i === 0 ? 'bg-violet-500/10 border-violet-500/30' : 
                 'bg-white/[0.02] border-white/5'
               }`}>
-                {(p.momentumBonus > 0 || p.doubleBonus || p.repeatBonus >= 15) && (
-                  <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] ${
-                    p.repeatBonus >= 15 ? 'bg-cyan-500' :
-                    p.momentumBonus > 0 ? 'bg-rose-500' : 'bg-emerald-500'
-                  }`}>
-                    {p.repeatBonus >= 15 ? '🔄' : p.momentumBonus > 0 ? '🔥' : '⚡'}
-                  </div>
-                )}
                 <div className="text-2xl mb-1">{sym.emoji}</div>
-                <div className="text-sm font-bold font-mono text-white">{p.totalScore.toFixed(0)}</div>
+                <div className="text-sm font-bold font-mono text-white">{p.confidence.toFixed(0)}%</div>
                 <div className="text-[9px] text-slate-500">
-                  <ArrowDownRight className={`w-3 h-3 inline ${p.deviation < 0 ? 'text-emerald-400' : 'text-rose-400'}`} />
-                  {p.deviation.toFixed(1)}%
+                  نمط {p.patternLength}
                 </div>
               </div>
             );
@@ -889,21 +853,20 @@ function StatisticalPredictor({
       <div className="space-y-2">
         <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
         {finalPicks.map(p => {
-          const sym = SYMBOLS.find(s => s.id === p.symbol)!;
+          const sym = SYMBOLS.find(s => s.id === p.symbolId)!;
           return (
-            <div key={p.symbol} className="flex items-center gap-3 text-[10px]">
+            <div key={p.symbolId} className="flex items-center gap-3 text-[10px]">
               <span className="w-5 text-center">{sym.emoji}</span>
               <span className="text-slate-400 w-12">{sym.name}</span>
               <div className="flex-1 h-1 bg-white/[0.03] rounded-full overflow-hidden">
                 <div className={`h-full rounded-full ${
-                  p.repeatBonus >= 15 ? 'bg-gradient-to-r from-cyan-500 to-blue-400' :
-                  p.momentumBonus > 0 ? 'bg-gradient-to-r from-rose-500 to-orange-400' :
-                  p.doubleBonus ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' : 
+                  p.confidence > 40 ? 'bg-gradient-to-r from-emerald-500 to-cyan-400' :
+                  p.confidence > 20 ? 'bg-gradient-to-r from-amber-500 to-orange-400' :
                   'bg-gradient-to-r from-violet-500 to-cyan-400'
-                }`} style={{ width: `${p.totalScore}%` }} />
+                }`} style={{ width: `${p.confidence}%` }} />
               </div>
               <span className="text-slate-500 font-mono w-16 text-left">
-                {p.actualPct.toFixed(0)}% / {p.theoreticalPct.toFixed(0)}%
+                {p.confidence.toFixed(0)}%
               </span>
             </div>
           );
@@ -941,7 +904,6 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
                 {d.repeatBonus >= 15 && <span className="text-[10px]">🔄</span>}
                 {d.momentumBonus > 0 && <span className="text-[10px]">🔥</span>}
                 {d.doubleBonus && !d.momentumBonus && <span className="text-[10px]">⚡</span>}
-                {d.sequenceBonus > 0 && <span className="text-[10px]">🎯</span>}
               </div>
               <span className={`text-[10px] font-mono font-bold ${isUnder ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {d.deviation > 0 ? '+' : ''}{d.deviation.toFixed(1)}%
@@ -960,30 +922,6 @@ function DeviationPanel({ results }: { results: ResultRow[] }) {
               <div className="flex justify-between">
                 <span className="text-slate-500">غياب</span>
                 <span className="text-slate-300">{d.currentGap} / {d.avgGap.toFixed(1)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">زخم</span>
-                <span className={`${d.momentumBonus > 0 ? 'text-rose-400' : 'text-slate-500'}`}>
-                  {d.momentumBonus.toFixed(0)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">تكرار</span>
-                <span className={`${d.streakBonus > 0 ? 'text-cyan-400' : 'text-slate-500'}`}>
-                  {d.streakBonus.toFixed(0)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">تسلسل</span>
-                <span className={`${d.sequenceBonus > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
-                  {d.sequenceBonus.toFixed(0)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">احتمال تكرار</span>
-                <span className={`${d.repeatRate >= 10 ? 'text-cyan-400' : 'text-slate-500'}`}>
-                  {d.repeatRate.toFixed(0)}%
-                </span>
               </div>
               <div className="flex justify-between pt-1.5 border-t border-white/5">
                 <span className="text-slate-500">النقاط</span>
