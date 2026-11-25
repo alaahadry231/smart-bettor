@@ -101,7 +101,6 @@ export default function HomePage() {
 
     const { deviations } = analyzeConditionalProbability(results);
     
-    // 👇 رجعنا الفلتر: 3 خضار + 2 لحوم
     const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
     const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
     const finalPicks = [...veggiePicks, ...animalPicks];
@@ -186,7 +185,7 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-sm font-bold text-white tracking-wide">الراهن الذكي</h1>
-              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Conditional Engine V7.1</p>
+              <p className="text-[9px] text-violet-400/80 font-mono tracking-widest uppercase">Conditional Engine V7.2</p>
             </div>
           </div>
           
@@ -230,7 +229,7 @@ export default function HomePage() {
                     <Scale className="w-5 h-5 text-amber-400" />
                     <span className="text-sm font-semibold text-white tracking-wide">محرك الاحتمال الشرطي</span>
                   </div>
-                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">V7.1</span>
+                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">V7.2</span>
                 </div>
                 <StatisticalPredictor 
                   results={results} 
@@ -364,7 +363,7 @@ export default function HomePage() {
       <footer className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 border-t border-white/[0.04] mt-6">
         <div className="flex items-center justify-between text-[10px] text-slate-600 font-mono tracking-widest uppercase">
           <span>Smart Bettor Intelligence</span>
-          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V7.1 · Conditional + 3+2</span>
+          <span className="flex items-center gap-2"><Cpu className="w-3 h-3" /> Engine V7.2 · Conditional + Animals Boost</span>
         </div>
       </footer>
     </main>
@@ -463,7 +462,7 @@ function GapDisplay({ results }: { results: ResultRow[] }) {
 }
 
 // ==========================================
-// المحرك الإحصائي (Conditional V7.1)
+// المحرك الإحصائي (Conditional V7.2) - مع تعديلات الحيوانات
 // ==========================================
 
 interface ConditionalData {
@@ -540,10 +539,50 @@ function analyzeConditionalProbability(results: ResultRow[]): {
     const deviationScore = Math.max(0, Math.min(100, normalizedDev * 2 + 50));
     
     const conditionalProb = conditionalProbs[sym.id] || 0;
-        const totalScore = 
+    
+    // 👇 الحساب الأساسي (للخضار والحيوانات) - الخضار ما بتتأثر بأي تعديل
+    let totalScore = 
       (conditionalProb * 0.55) + 
       (deviationScore * 0.20) + 
       (theoreticalPct * 0.25);
+
+    // 👇👇👇 تعديلات خاصة بالحيوانات فقط (الخضار ما تتأثر) 👇👇👇
+    if (sym.type === 'animal') {
+      // حساب الغياب والمتوسط
+      let currentGap = 0;
+      for (let i = results.length - 1; i >= 0; i--) {
+        if (results[i].symbol_id === sym.id) break;
+        currentGap++;
+      }
+      
+      const indexes: number[] = [];
+      results.forEach((r, i) => { if (r.symbol_id === sym.id) indexes.push(i); });
+      let avgGap = 10;
+      if (indexes.length >= 2) {
+        let sum = 0;
+        for (let i = 1; i < indexes.length; i++) sum += indexes[i] - indexes[i - 1];
+        avgGap = sum / (indexes.length - 1);
+      }
+      const relativeGap = avgGap > 0 ? currentGap / avgGap : 0;
+
+      // 1. دفعة للحيوانات اللي غابت أكثر من متوسطها
+      if (relativeGap > 1.5) {
+        totalScore += 20;
+      } else if (relativeGap > 1.0) {
+        totalScore += 10;
+      }
+
+      // 2. تخفيض للحيوانات اللي ظهرت قريب (لأنها "مشبعة")
+      if (relativeGap < 0.5 && currentGap < 3) {
+        totalScore = totalScore * 0.7;
+      }
+
+      // 3. مكافأة الندرة (Scarcity Bonus)
+      if (sym.id === 'rooster') totalScore += 15; // الديك أندر حيوان
+      else if (sym.id === 'fish') totalScore += 10;
+      else if (sym.id === 'sheep') totalScore += 5;
+    }
+    // 👆👆👆 نهاية تعديلات الحيوانات 👆👆👆
 
     return {
       symbol: sym.id,
@@ -568,7 +607,7 @@ function analyzeConditionalProbability(results: ResultRow[]): {
 }
 
 // ==========================================
-// مكون التوقعات (Conditional V7.1 - مع 3+2)
+// مكون التوقعات (Conditional V7.2 - مع 3+2)
 // ==========================================
 function StatisticalPredictor({ 
   results, 
@@ -595,7 +634,6 @@ function StatisticalPredictor({
 
   const { deviations } = analyzeConditionalProbability(results);
 
-  // 👇 رجعنا الفلتر: 3 خضار + 2 لحوم
   const veggiePicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'vegetable').slice(0, 3);
   const animalPicks = deviations.filter(d => SYMBOLS.find(s => s.id === d.symbol)?.type === 'animal').slice(0, 2);
   const finalPicks = [...veggiePicks, ...animalPicks].sort((a, b) => b.totalScore - a.totalScore);
@@ -607,7 +645,7 @@ function StatisticalPredictor({
     <div className="flex-1 flex flex-col justify-between gap-5">
       <div>
         <div className="flex items-center justify-between mb-4">
-          <span className="text-[10px] text-slate-500 font-mono uppercase">Conditional V7.1</span>
+          <span className="text-[10px] text-slate-500 font-mono uppercase">Conditional V7.2</span>
           <span className="text-[10px] font-mono text-cyan-400">3+2 Format</span>
         </div>
 
@@ -704,7 +742,7 @@ function StatisticalPredictor({
 }
 
 // ==========================================
-// لوحة الانحراف (Conditional V7.1)
+// لوحة الانحراف (Conditional V7.2)
 // ==========================================
 function DeviationPanel({ results }: { results: ResultRow[] }) {
   if (results.length < 10) {
